@@ -50,7 +50,7 @@ class StereoCharuco_Calibrator(object):
         self.fy = 0.3
 
         self.position = (20, 30)
-        self.see = True
+        self.see = False
         self.flipVertically = True
         self.name = name
         self.K_left,self.K_right,self.D_left,self.D_right = None,None,None,None
@@ -383,6 +383,62 @@ class StereoCharuco_Calibrator(object):
                 wait = 1
         cv2.waitKey(0)
         cv2.destroyAllWindows()
+
+    def calibrationReport(self):
+        Distorsion_models = {'ST': ['Standard', 0, 'Standard'],
+                                 'RAT': ['Rational', cv2.CALIB_RATIONAL_MODEL, 'CALIB_RATIONAL_MODEL'],
+                                 'THP': ['Thin Prism', cv2.CALIB_THIN_PRISM_MODEL, 'CALIB_THIN_PRISM_MODEL'],
+                                 'TIL': ['Tilded', cv2.CALIB_TILTED_MODEL, 'CALIB_TILTED_MODEL'],  # }
+                                 'RAT+THP': ['Rational+Thin Prism',
+                                             cv2.CALIB_RATIONAL_MODEL + cv2.CALIB_THIN_PRISM_MODEL,
+                                             'CALIB_RATIONAL_MODEL + CALIB_THIN_PRISM_MODEL'],
+                                 'THP+TIL': ['Thin Prism+Tilded', cv2.CALIB_THIN_PRISM_MODEL + cv2.CALIB_TILTED_MODEL,
+                                             'CALIB_THIN_PRISM_MODEL + CALIB_TILTED_MODEL'],
+                                 'RAT+TIL': ['Rational+Tilded', cv2.CALIB_RATIONAL_MODEL + cv2.CALIB_TILTED_MODEL,
+                                             'CALIB_RATIONAL_MODEL + CALIB_TILTED_MODEL'],
+                                 'CMP': ['Complete',
+                                         cv2.CALIB_RATIONAL_MODEL + cv2.CALIB_THIN_PRISM_MODEL + cv2.CALIB_TILTED_MODEL,
+                                         'Complete']}
+
+        def rot2eul(R):
+            beta = -np.arcsin(R[2, 0])
+            alpha = np.arctan2(R[2, 1] / np.cos(beta), R[2, 2] / np.cos(beta))
+            gamma = np.arctan2(R[1, 0] / np.cos(beta), R[0, 0] / np.cos(beta))
+            alpha, beta, gamma = math.degrees(alpha), math.degrees(beta), math.degrees(gamma)
+            return np.array((alpha, beta, gamma))
+
+        calibration_results = pd.DataFrame(
+            {"params": [ 'Tx','Ty','Tz','Rx','Ry','Rz', 'Error']})
+        rms_all = ['Error']
+
+        min_error, flag = 10000000, 0
+        for key in Distorsion_models:
+            print()
+            print(key, '->', Distorsion_models[key][0], ' , ', Distorsion_models[key][1], ' , ',
+                  Distorsion_models[key][2])
+            flags = Distorsion_models[key][1]
+
+            self.stereoCalibrate(flags=flags, save=False)
+            s = np.append(self.T, rot2eul(self.R))
+            calibration_results[str(key)] = pd.Series(s)
+            calibration_results.fillna('---', inplace=True)
+            rms_all.append(self.rms_stereo)
+            calibration_results[str(key)] = calibration_results[str(key)].map(
+                lambda x: round(x, 4) if isinstance(x, (int, float)) else x).astype(str)
+
+            if self.rms_stereo < min_error:
+                min_error=self.rms_stereo
+                flag = flags
+
+        calibration_results.iloc[-1, :] = rms_all
+        calibration_results.iloc[-1, :] = calibration_results.iloc[-1, :].map(
+            lambda x: round(x, 4) if isinstance(x, (int, float)) else x)
+
+        save_csv(obj=calibration_results, name=self.name+'_charuco_StereoCalibration')
+        print('Best distortion model for stereo calib is {}'.format(flag))
+        self.stereoCalibrate(flags=flag,save=True)
+
+        return flag
 
 
 

@@ -50,7 +50,7 @@ class StereoChess_Calibrator(object):
         self.fy = 0.3
 
         self.position = (20, 30)
-        self.see = True
+        self.see = False
         self.flipVertically = True
         self.name = name
 
@@ -326,6 +326,7 @@ class StereoChess_Calibrator(object):
             beta = -np.arcsin(R[2, 0])
             alpha = np.arctan2(R[2, 1] / np.cos(beta), R[2, 2] / np.cos(beta))
             gamma = np.arctan2(R[1, 0] / np.cos(beta), R[0, 0] / np.cos(beta))
+            alpha, beta, gamma = math.degrees(alpha), math.degrees(beta), math.degrees(gamma)
             return np.array((alpha, beta, gamma))
 
         calibration_results = pd.DataFrame(

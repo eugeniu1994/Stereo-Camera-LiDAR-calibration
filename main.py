@@ -58,28 +58,28 @@ def Chess_MonoCalibration():
     # ---------Work with right camera ----------------------------------------------
     # calibrate right camera outside
     print('=== Calibrate right camera outside ===')
-    calibrator = calibrate_(leftCam=False, outside=True)
+    #calibrator = calibrate_(leftCam=False, outside=True)
 
     # calibrate right camera inside
     print('=== Calibrate right camera inside ===')
     calibrator = calibrate_(leftCam=False, outside=False)
 
-    ideal_calibration_right = load_obj(name='chess_outside_right')
-    calibrator.adjustCalibration(images=calibrator.images, K=ideal_calibration_right['K'],
-                                 D=ideal_calibration_right['D'])
+    #ideal_calibration_right = load_obj(name='chess_outside_right')
+    #calibrator.adjustCalibration(images=calibrator.images, K=ideal_calibration_right['K'],
+    #                             D=ideal_calibration_right['D'])
 
     # ---------Work with left camera -----------------------------------------------
     # calibrate left camera outside
     print('=== Calibrate left camera outside ===')
-    calibrator = calibrate_(leftCam=True, outside=True)
+    #calibrator = calibrate_(leftCam=True, outside=True)
 
     # calibrate left camera inside
     print('=== Calibrate left camera inside ===')
     calibrator = calibrate_(leftCam=True, outside=False)
 
-    ideal_calibration_left = load_obj(name='chess_outside_left')
-    calibrator.adjustCalibration(images=calibrator.images, K=ideal_calibration_left['K'],
-                                 D=ideal_calibration_left['D'])
+    #ideal_calibration_left = load_obj(name='chess_outside_left')
+    #calibrator.adjustCalibration(images=calibrator.images, K=ideal_calibration_left['K'],
+    #                             D=ideal_calibration_left['D'])
 
     print('Mono camera calibration done')
 
@@ -101,13 +101,12 @@ def Chess_StereoCalibration():
         # calibrator.readStereoData()
 
     #Calibrate outside--------
-    #print('Stereo Calibrate outside')
-    stereo_calibrate(outside=True)
+    print('Stereo Calibrate outside')
+    #stereo_calibrate(outside=True)
 
     #Calibrate inside---------
-    #print('Stereo Calibrate inside')
-    #stereo_calibrate(outside=False)
-
+    print('Stereo Calibrate inside')
+    stereo_calibrate(outside=False)
 
     def testCalibration(outside = True):
         if outside:
@@ -127,11 +126,11 @@ def Chess_StereoCalibration():
 
     #Test calibration outside-----
     print('Test calibration outside')
-    testCalibration(outside=True)
+    #testCalibration(outside=True)
 
     #Test calibration inside
     print('Test calibration inside')
-    testCalibration(outside=False)
+    #testCalibration(outside=False)
 
 def Charuco_MonoCalibration():
     def calibrate_(leftCam=False, outside=False):
@@ -199,8 +198,8 @@ def Charuco_StereoCalibration():
         calibrator.createCalibrationBoard()
         calibrator.readMonoData()
         calibrator.read_images(test=False)
-        #calibrator.calibrationReport()
-        calibrator.stereoCalibrate(save=True)
+        calibrator.calibrationReport()
+        #calibrator.stereoCalibrate(save=True)
         # calibrator.readStereoData()
 
     #Calibrate outside--------
@@ -209,7 +208,7 @@ def Charuco_StereoCalibration():
 
     #Calibrate inside---------
     print('Stereo Calibrate inside')
-    #stereo_calibrate(outside=False)
+    stereo_calibrate(outside=False)
 
     def testCalibration(outside = True):
         if outside:
@@ -229,7 +228,7 @@ def Charuco_StereoCalibration():
 
     #Test calibration outside-----
     print('Test calibration outside')
-    testCalibration(outside=True)
+    #testCalibration(outside=True)
 
     #Test calibration inside
     print('Test calibration inside')
@@ -249,19 +248,20 @@ def visualize3Dpoints():
 def combinedChess_and_Charuco():
     #calibrator = MonoCombinedCalibration()
 
-    name = 'outside'
-    calibrator = CombinedCalibration(name=name)
-    calibrator.readMonoData()
-    # read stereo images & stereo calibrate
-    imgChess = '/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/chess/{}/Stereo'.format(name)
-    imgCharuco = '/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/charuco/{}/Stereo'.format(name)
-    #calibrator.calibrateStereo(imgChess, imgCharuco, see=True)
+    names = ['outside','inside']
+    for name in names:
+        calibrator = CombinedCalibration(name=name)
+        calibrator.readMonoData()
+        # read stereo images & stereo calibrate
+        imgChess = '/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/chess/{}/Stereo'.format(name)
+        imgCharuco = '/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/charuco/{}/Stereo'.format(name)
+        #calibrator.calibrateStereo(imgChess, imgCharuco, see=False)
+        calibrator.calibrationReport(imgChess, imgCharuco)
+        #calibrator.readStereoData()
 
-    calibrator.readStereoData()
-
+    print('Test combined stereo calibration')
     images = '/home/eugeniu/Desktop/Stereo_test'
-    images = imgChess
-    calibrator.depth(testImages=images)
+    #calibrator.depth(testImages=images)
 
 if __name__ == '__main__':
     print('Main')
@@ -279,8 +279,8 @@ if __name__ == '__main__':
     #Charuco_StereoCalibration()
 
     #View pointcloud-------------------------------------------------
-    visualize3Dpoints()
+    #visualize3Dpoints()
 
     #combined chess & charuco images
-    #combinedChess_and_Charuco()
+    combinedChess_and_Charuco()
 
