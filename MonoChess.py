@@ -1,37 +1,23 @@
 
-'''
-    Software License Agreement (BSD License)
- *
- *  Copyright (c) 2021, Eugeniu Vezeteu
- *  All rights reserved.
- *
- *  Redistribution and use in source and binary forms, with or without
- *  modification, are permitted provided that the following conditions
- *  are met:
- *
- *   * Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above
- *     copyright notice, this list of conditions and the following
- *     disclaimer in the documentation and/or other materials provided
- *     with the distribution.
- *   * Neither the name of Eugeniu Vezeteu nor the names of its
- *     contributors may be used to endorse or promote products derived
- *     from this software without specific prior written permission.
- *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- *  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- *  POSSIBILITY OF SUCH DAMAGE.
+'''  CONFIDENTIAL
 
+     Copyright (c) 2021 Eugeniu Vezeteu,
+     Department of Remote Sensing and Photogrammetry,
+     Finnish Geospatial Research Institute (FGI), National Land Survey of Finland (NLS)
+
+
+     PERMISSION IS HEREBY LIMITED TO FGI'S INTERNAL USE ONLY. THE CODE
+     MAY BE RE-LICENSED, SHARED, OR TAKEN INTO OTHER USE ONLY WITH
+     A WRITTEN CONSENT FROM THE HEAD OF THE DEPARTMENT.
+
+
+     The software is provided "as is", without warranty of any kind, express or
+     implied, including but not limited to the warranties of merchantability,
+     fitness for a particular purpose and noninfringement. In no event shall the
+     authors or copyright holders be liable for any claim, damages or other
+     liability, whether in an action of contract, tort or otherwise, arising from,
+     out of or in connection with the software or the use or other dealings in the
+     software.
 '''
 
 from __future__ import print_function
@@ -93,6 +79,7 @@ class MonoChess_Calibrator:
         self.image_height = 1216
         self.image_center = np.array([self.image_width / 2, self.image_height / 2])
         self.optical_area = (11.345, 7.126)  # mm
+        self.see = True
 
     @staticmethod
     def _splitfn(fn):
@@ -266,12 +253,12 @@ class MonoChess_Calibrator:
                 else:
                     corners2 = corners.copy()
 
-                if self.debug_dir:
+                if self.debug_dir or self.see:
                     vis = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
                     cv2.drawChessboardCorners(vis, (self.pattern_columns, self.pattern_rows), corners2, found)
-                    path, name, ext = self._splitfn(img_path)
-                    outfile = os.path.join(self.debug_dir, name + '_pts_vis.png')
-                    cv2.imwrite(outfile, vis)
+                    #path, name, ext = self._splitfn(img_path)
+                    #outfile = os.path.join(self.debug_dir, name + '_pts_vis.png')
+                    #cv2.imwrite(outfile, vis)
             else:
                 # print("Calibration board NOT FOUND")
                 return (None)
@@ -297,7 +284,6 @@ class MonoChess_Calibrator:
                                             "obj_points": obj_points, })
         self.calibration_df.sort_values("image_names")
         self.calibration_df = self.calibration_df.reset_index(drop=True)
-
         print('start calibration obj_points:{},  img_points:{}'.format(np.shape(self.calibration_df.obj_points),
                                                                        np.shape(self.calibration_df.img_points)))
 

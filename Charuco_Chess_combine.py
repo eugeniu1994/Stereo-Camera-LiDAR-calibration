@@ -1,37 +1,22 @@
+'''  CONFIDENTIAL
 
-'''
-    Software License Agreement (BSD License)
- *
- *  Copyright (c) 2021, Eugeniu Vezeteu
- *  All rights reserved.
- *
- *  Redistribution and use in source and binary forms, with or without
- *  modification, are permitted provided that the following conditions
- *  are met:
- *
- *   * Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above
- *     copyright notice, this list of conditions and the following
- *     disclaimer in the documentation and/or other materials provided
- *     with the distribution.
- *   * Neither the name of Eugeniu Vezeteu nor the names of its
- *     contributors may be used to endorse or promote products derived
- *     from this software without specific prior written permission.
- *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- *  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- *  POSSIBILITY OF SUCH DAMAGE.
+     Copyright (c) 2021 Eugeniu Vezeteu,
+     Department of Remote Sensing and Photogrammetry,
+     Finnish Geospatial Research Institute (FGI), National Land Survey of Finland (NLS)
 
+
+     PERMISSION IS HEREBY LIMITED TO FGI'S INTERNAL USE ONLY. THE CODE
+     MAY BE RE-LICENSED, SHARED, OR TAKEN INTO OTHER USE ONLY WITH
+     A WRITTEN CONSENT FROM THE HEAD OF THE DEPARTMENT.
+
+
+     The software is provided "as is", without warranty of any kind, express or
+     implied, including but not limited to the warranties of merchantability,
+     fitness for a particular purpose and noninfringement. In no event shall the
+     authors or copyright holders be liable for any claim, damages or other
+     liability, whether in an action of contract, tort or otherwise, arising from,
+     out of or in connection with the software or the use or other dealings in the
+     software.
 '''
 
 import glob
@@ -248,6 +233,11 @@ class CombinedCalibration(object):
                                                         blockSize=window_size,
                                                     )
 
+            self.left_matcherasdasd = cv2.StereoSGBM_create(minDisparity=5,
+                                                      numDisparities=16,
+                                                      blockSize=window_size,
+                                                      )
+
             self.stereo = cv2.StereoBM_create(numDisparities=256, blockSize=5)
             self.right_matcher = cv2.ximgproc.createRightMatcher(self.left_matcher)
             # FILTER Parameters
@@ -288,10 +278,10 @@ class CombinedCalibration(object):
 
         idx = np.fabs(out_points[:, 0]) < 250  # 10.5 # filter by dimension
         out_points = out_points[idx]
-        #out_colors = out_colors.reshape(-1, 3)
-        #out_colors = out_colors[idx]
-        #write_ply('BM_2.ply', out_points, out_colors)
-        #print('%s saved' % 'out.ply')
+        out_colors = out_colors.reshape(-1, 3)
+        out_colors = out_colors[idx]
+        write_ply('BM_2.ply', out_points, out_colors)
+        print('%s saved' % 'out.ply')
 
         reflected_pts = np.matmul(out_points, reflect_matrix)
         projected_img, _ = cv2.projectPoints(reflected_pts, np.identity(3), np.array([0., 0., 0.]), self.K_left,
@@ -341,8 +331,9 @@ class CombinedCalibration(object):
             pointCloudColor = self.depth_and_color(img=SGBM_disp.copy(),left_rectified=left_rectified)
 
             cv2.imshow('img_bot ', img_bot)
+            #cv2.imshow('out ', cv2.resize(out, None, fx=self.fx, fy=self.fy))
             cv2.imshow('Result', img_top)
-            cv2.imshow('pointCloudColor', cv2.resize(pointCloudColor, None, fx=.4, fy=.4))
+            cv2.imshow('pointCloudColor', cv2.resize(pointCloudColor, None, fx=self.fx, fy=self.fy))
 
             k = cv2.waitKey(wait)
             if k & 0xFF == ord('q'):

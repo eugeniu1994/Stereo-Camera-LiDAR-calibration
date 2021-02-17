@@ -1,36 +1,22 @@
-'''
-    Software License Agreement (BSD License)
- *
- *  Copyright (c) 2021, Eugeniu Vezeteu
- *  All rights reserved.
- *
- *  Redistribution and use in source and binary forms, with or without
- *  modification, are permitted provided that the following conditions
- *  are met:
- *
- *   * Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above
- *     copyright notice, this list of conditions and the following
- *     disclaimer in the documentation and/or other materials provided
- *     with the distribution.
- *   * Neither the name of Eugeniu Vezeteu nor the names of its
- *     contributors may be used to endorse or promote products derived
- *     from this software without specific prior written permission.
- *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- *  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- *  POSSIBILITY OF SUCH DAMAGE.
+'''  CONFIDENTIAL
 
+     Copyright (c) 2021 Eugeniu Vezeteu,
+     Department of Remote Sensing and Photogrammetry,
+     Finnish Geospatial Research Institute (FGI), National Land Survey of Finland (NLS)
+
+
+     PERMISSION IS HEREBY LIMITED TO FGI'S INTERNAL USE ONLY. THE CODE
+     MAY BE RE-LICENSED, SHARED, OR TAKEN INTO OTHER USE ONLY WITH
+     A WRITTEN CONSENT FROM THE HEAD OF THE DEPARTMENT.
+
+
+     The software is provided "as is", without warranty of any kind, express or
+     implied, including but not limited to the warranties of merchantability,
+     fitness for a particular purpose and noninfringement. In no event shall the
+     authors or copyright holders be liable for any claim, damages or other
+     liability, whether in an action of contract, tort or otherwise, arising from,
+     out of or in connection with the software or the use or other dealings in the
+     software.
 '''
 
 import glob
@@ -116,7 +102,7 @@ def Chess_StereoCalibration():
 
     #Calibrate outside--------
     #print('Stereo Calibrate outside')
-    #stereo_calibrate(outside=True)
+    stereo_calibrate(outside=True)
 
     #Calibrate inside---------
     #print('Stereo Calibrate inside')
@@ -219,7 +205,7 @@ def Charuco_StereoCalibration():
 
     #Calibrate outside--------
     print('Stereo Calibrate outside')
-    #stereo_calibrate(outside=True)
+    stereo_calibrate(outside=True)
 
     #Calibrate inside---------
     print('Stereo Calibrate inside')
@@ -261,19 +247,20 @@ def visualize3Dpoints():
     visualize_model(points)
 
 def combinedChess_and_Charuco():
-    calibrator = MonoCombinedCalibration()
+    #calibrator = MonoCombinedCalibration()
 
     name = 'outside'
     calibrator = CombinedCalibration(name=name)
     calibrator.readMonoData()
     # read stereo images & stereo calibrate
-    # imgChess = '/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/chess/{}/Stereo'.format(name)
-    # imgCharuco = '/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/charuco/{}/Stereo'.format(name)
-    # calibrator.calibrateStereo(imgChess, imgCharuco, see=True)
+    imgChess = '/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/chess/{}/Stereo'.format(name)
+    imgCharuco = '/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/charuco/{}/Stereo'.format(name)
+    #calibrator.calibrateStereo(imgChess, imgCharuco, see=True)
 
     calibrator.readStereoData()
 
     images = '/home/eugeniu/Desktop/Stereo_test'
+    images = imgChess
     calibrator.depth(testImages=images)
 
 if __name__ == '__main__':
@@ -292,7 +279,7 @@ if __name__ == '__main__':
     #Charuco_StereoCalibration()
 
     #View pointcloud-------------------------------------------------
-    #visualize3Dpoints()
+    visualize3Dpoints()
 
     #combined chess & charuco images
     #combinedChess_and_Charuco()
