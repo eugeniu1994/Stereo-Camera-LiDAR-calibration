@@ -33,13 +33,15 @@ from CameraCalibration.scripts.StereoChess import StereoChess_Calibrator
 from utils import *
 
 class CombinedCalibration(object):
-    def __init__(self, name = ''):
+    def __init__(self, name = '', flipVertically = True):
         self.name = name
-        self.term_criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 3000, 0.000001)
-        self.flipVertically = True
-
+        self.term_criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 30000, 0.000001)
+        self.flipVertically = flipVertically
         self.fx = 0.3
         self.fy = 0.35
+
+        self.image_width = 1936
+        self.image_height = 1216
 
     def calibrateMono(self, imgChess, imgCharuco,see = False, save = True, cam = 'left'):
         Chess_calibrator = MonoChess_Calibrator(pattern_type="chessboard", pattern_rows=10,
@@ -83,14 +85,17 @@ class CombinedCalibration(object):
             save_obj(obj=result_dictionary, name='combined_{}_{}'.format(self.name, cam))
 
     def calibrateStereo(self,imgChess, imgCharuco,see = False, save = True, flags=None,):
+        total = 0
         Chess_calibrator = StereoChess_Calibrator(imgChess)
         Chess_calibrator.see = see
         Chess_calibrator.read_images(test=False)
+        total+=Chess_calibrator.total
 
         Charuco_calibrator = StereoCharuco_Calibrator(imgCharuco)
         Charuco_calibrator.see = see
         Charuco_calibrator.createCalibrationBoard()
         Charuco_calibrator.read_images(test=False)
+        total+=Charuco_calibrator.total
         self.image_size = Charuco_calibrator.img_shape
         print('self.image_size ',self.image_size)
         if flags is None:
@@ -107,7 +112,6 @@ class CombinedCalibration(object):
         Charuco_imagePointsL = np.array(Charuco_calibrator.imgpoints_l)
         Charuco_imagePointsR = np.array(Charuco_calibrator.imgpoints_r)
 
-
         print('Chess_objectPoints:{}, Chess_imagePointsL:{}, Chess_imagePointsR:{}'.format(np.shape(Chess_objectPoints),
                                                                    np.shape(Chess_imagePointsL), np.shape(Chess_imagePointsR)))
 
@@ -115,7 +119,7 @@ class CombinedCalibration(object):
                                                                                            np.shape(Charuco_imagePointsL),
                                                                                            np.shape(
                                                                                                Charuco_imagePointsR)))
-
+        print('Total of {} points'.format(total))
         _objectPoints = []# np.append(Chess_objectPoints, Charuco_objectPoints)
         _imagePointsL = []# np.append(Chess_imagePointsL, Charuco_imagePointsL)
         _imagePointsR = []# np.append(Chess_imagePointsR, Charuco_imagePointsR)
@@ -144,8 +148,7 @@ class CombinedCalibration(object):
         R1, R2, P1, P2, self.Q, self.roi_left, self.roi_right = cv2.stereoRectify(self.K_left, self.D_left,
                                                                                   self.K_right,
                                                                                   self.D_right, self.image_size, self.R,
-                                                                                  self.T,
-                                                                                  flags=cv2.CALIB_ZERO_DISPARITY,
+                                                                                  self.T,flags=cv2.CALIB_ZERO_DISPARITY,
                                                                                   alpha=-1)
 
         self.leftMapX, self.leftMapY = cv2.initUndistortRectifyMap(
@@ -254,6 +257,9 @@ class CombinedCalibration(object):
         self.T = camera_model['T']
         self.Q = camera_model_rectify['Q']
 
+        self.P1 = camera_model_rectify['P1']
+        self.P2 = camera_model_rectify['P2']
+
         self.roi_left, self.roi_right = camera_model_rectify['roi_left'],camera_model_rectify['roi_right']
         self.leftMapX, self.leftMapY = camera_model_rectify['leftMapX'], camera_model_rectify['leftMapY']
         self.rightMapX, self.rightMapY = camera_model_rectify['rightMapX'], camera_model_rectify['rightMapY']
@@ -263,6 +269,24 @@ class CombinedCalibration(object):
         print('Translation T')
         print(self.T)
         print('Stereo data has been loaded...')
+
+        self.image_size = (self.image_width, self.image_height)
+        R1, R2, P1, P2, self.Q, self.roi_left, self.roi_right = cv2.stereoRectify(self.K_left, self.D_left,
+                                                                                  self.K_right,
+                                                                                  self.D_right, self.image_size, self.R,
+                                                                                  self.T,
+                                                                                  flags=cv2.CALIB_ZERO_DISPARITY,
+                                                                                  alpha=0)
+                                                                                  #flags=cv2.CALIB_ZERO_DISPARITY,
+                                                                                  #alpha=-1)
+
+        self.leftMapX, self.leftMapY = cv2.initUndistortRectifyMap(
+            self.K_left, self.D_left, R1,
+            P1, self.image_size, cv2.CV_32FC1)
+
+        self.rightMapX, self.rightMapY = cv2.initUndistortRectifyMap(
+            self.K_right, self.D_right, R2,
+            P2, self.image_size, cv2.CV_32FC1)
 
     def read_images(self, path):
         images_right = glob.glob(path + '/Right/*.png')
@@ -283,20 +307,14 @@ class CombinedCalibration(object):
             self.LeftImg.append(img_l)
             self.RightImg.append(img_r)
 
-    def depth_map_SGBM(self, imgL, imgR):
-        window_size = 5
+    def depth_map_SGBM(self, imgL, imgR, numDisparities = 256, window_size = 11):
         if self.left_matcher is None:
             self.left_matcher = cv2.StereoSGBM_create(minDisparity=5,
-                                                        numDisparities=256,
+                                                        numDisparities=numDisparities,
                                                         blockSize=window_size,
                                                     )
 
-            self.left_matcherasdasd = cv2.StereoSGBM_create(minDisparity=5,
-                                                      numDisparities=16,
-                                                      blockSize=window_size,
-                                                      )
-
-            self.stereo = cv2.StereoBM_create(numDisparities=256, blockSize=5)
+            self.stereo = cv2.StereoBM_create(numDisparities=numDisparities, blockSize=window_size)
             self.right_matcher = cv2.ximgproc.createRightMatcher(self.left_matcher)
             # FILTER Parameters
             lmbda = 80000
@@ -314,15 +332,47 @@ class CombinedCalibration(object):
 
         SGBM_disp = cv2.normalize(src=SGBM_disp, dst=SGBM_disp, beta=0, alpha=255, norm_type=cv2.NORM_MINMAX)
         SGBM_disp = np.uint8(SGBM_disp)
+        #SGBM_disp = SGBM_disp.astype(np.float32) / 16.0
+        #SGBM_disp = cv2.normalize(SGBM_disp, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
 
-        disparity = self.stereo.compute(imgL, imgR)
-        disparity = cv2.normalize(src=disparity, dst=disparity, beta=0, alpha=255, norm_type=cv2.NORM_MINMAX)
-        BM_disp = np.uint8(disparity)
+        BM_disp = self.stereo.compute(imgL, imgR)
+        BM_disp = cv2.normalize(src=BM_disp, dst=BM_disp, beta=0, alpha=255, norm_type=cv2.NORM_MINMAX)
+        BM_disp = np.uint8(BM_disp)
+        #BM_disp = BM_disp.astype(np.float32) / 16.0
 
         return SGBM_disp, BM_disp
 
-    def depth_and_color(self, img, left_rectified):
-        points = cv2.reprojectImageTo3D(img, self.Q)
+    def depth_and_color(self, img, img2=None, left_rectified=None, name = 'out.ply', gray_left=None,gray_right=None):
+        disparity_map = img
+        plt.imshow(disparity_map, cmap='gray', vmin=225, vmax=255)
+        plt.show()
+
+        focalLength, centerX, centerY = self.K_left[0,0], self.K_left[0,2], self.K_left[1,2]
+
+        Baseline = self.T[0]
+        h,w = np.shape(disparity_map)
+        print('np.shape(depth) {}'.format(np.shape(disparity_map)))
+        scalingFactor = 150
+        points, colors = [],[]
+        for v in range(250,w):
+            for u in range(h):
+                #Z = (Baseline * focalLength) / (depth[u, v] * p)
+                if disparity_map[u, v] > 0:
+                    color = left_rectified[u, v]
+                    Z = disparity_map[u, v] / scalingFactor
+                    if Z == 0: continue
+                    X = (u - centerX) * Z / focalLength
+                    Y = (v - centerY) * Z / focalLength
+                    Z = Baseline * focalLength / disparity_map[u, v]
+                    points.append([X,Y,Z])
+                    colors.append(color)
+
+        print('points:{}, colors:{}'.format(np.shape(points), np.shape(colors)))
+        points,colors = np.array(points), np.array(colors)
+        write_ply('out1.ply', points, colors)
+        print('out1.ply saved')
+#---------------------------------------    ----------------------------------------------------------------------------
+        points = cv2.reprojectImageTo3D(disparity_map, self.Q)
 
         reflect_matrix = np.identity(3)  # reflect on x axis
         reflect_matrix[0] *= -1
@@ -331,15 +381,15 @@ class CombinedCalibration(object):
 
         # filter by min disparity
         mask = img > img.min()
-        out_points = points[mask]
-        out_colors = colors[mask]
+        out_points =  points[mask]
+        out_colors =  colors[mask]
 
-        idx = np.fabs(out_points[:, 0]) < 250  # 10.5 # filter by dimension
+        idx = np.fabs(out_points[:, 0]) < 2250  # 10.5 # filter by dimension
         out_points = out_points[idx]
         out_colors = out_colors.reshape(-1, 3)
         out_colors = out_colors[idx]
-        write_ply('BM_2.ply', out_points, out_colors)
-        print('%s saved' % 'out.ply')
+        write_ply(name, out_points, out_colors)
+        print('%s saved' % name)
 
         reflected_pts = np.matmul(out_points, reflect_matrix)
         projected_img, _ = cv2.projectPoints(reflected_pts, np.identity(3), np.array([0., 0., 0.]), self.K_left,
@@ -359,7 +409,70 @@ class CombinedCalibration(object):
 
         return blank_img
 
-    def depth(self, testImages):
+    def d2(self, imgL, imgR):
+        import csv
+        import random
+
+        camera_focal_length_px = 1364.3372
+        stereo_camera_baseline_m = 0.2090607502  # camera baseline in metres
+        stereo_camera_baseline_m = 0.9663
+        image_centre_h = 968.2298
+        image_centre_w = 605.0811
+
+        ## project_disparity_to_3d : project a given disparity image
+
+        def project_disparity_to_3d(disparity, max_disparity, rgb=np.array([])):
+            points = []
+
+            f = camera_focal_length_px
+            B = stereo_camera_baseline_m
+
+            height, width = disparity.shape[:2]
+
+            # Zmax = ((f * B) / 2)
+            for y in range(height):  # 0 - height is the y axis index
+                for x in range(width):  # 0 - width is the x axis index
+                    if (disparity[y, x] > 0):
+                        # calculate corresponding 3D point [X, Y, Z]
+                        Z = (f * B) / disparity[y, x]
+                        X = ((x - image_centre_w) * Z) / f
+                        Y = ((y - image_centre_h) * Z) / f
+
+                        if (rgb.size > 0):
+                            points.append([X, Y, Z, rgb[y, x, 2], rgb[y, x, 1], rgb[y, x, 0]])
+                        else:
+                            points.append([X, Y, Z])
+
+            return points
+
+        # project a set of 3D points back the 2D image domain
+        def project_3D_points_to_2D_image_points(points):
+            points2 = []
+            # Zmax = (camera_focal_length_px * stereo_camera_baseline_m) / 2
+            for i1 in range(len(points)):
+                # reverse earlier projection for X and Y to get x and y again
+                x = ((points[i1][0] * camera_focal_length_px) / points[i1][2]) + image_centre_w
+                y = ((points[i1][1] * camera_focal_length_px) / points[i1][2]) + image_centre_h
+                points2.append([x, y])
+
+            return points2
+
+        max_disparity = 256
+        stereoProcessor = cv2.StereoSGBM_create(0, max_disparity, 5)
+
+        grayL = cv2.cvtColor(imgL, cv2.COLOR_BGR2GRAY)
+        grayR = cv2.cvtColor(imgR, cv2.COLOR_BGR2GRAY)
+
+        disparity_scaled = self.SGBM_disp
+        points = project_disparity_to_3d(disparity_scaled, max_disparity)
+        #points = project_disparity_to_3d(disparity_scaled, max_disparity, imgL)
+
+        point_cloud_file = open('3d_points.txt', 'w')
+        csv_writer = csv.writer(point_cloud_file, delimiter=' ')
+        csv_writer.writerows(points)
+        point_cloud_file.close()
+
+    def depth(self, testImages, second = False):
         self.read_images(path=testImages)
         self.left_matcher = None
         wait = 0
@@ -380,13 +493,17 @@ class CombinedCalibration(object):
             gray_right = cv2.cvtColor(right_rectified, cv2.COLOR_BGR2GRAY)
             #disparity_image2 = cv2.applyColorMap(disparity_image2, cv2.COLORMAP_JET)
 
-            SGBM_disp, BM_disp = self.depth_map_SGBM(gray_left, gray_right, )  # Get the disparity map
             img_top = cv2.hconcat(
                 [cv2.resize(left_rectified, None, fx=self.fx, fy=self.fy), cv2.resize(right_rectified, None, fx=self.fx, fy=self.fy)])
 
+            SGBM_disp, BM_disp = self.depth_map_SGBM(gray_left, gray_right, )  # Get the disparity map
+            self.SGBM_disp = SGBM_disp
+            if second:
+                self.d2(left_rectified, right_rectified)  # Get the disparity map
+
             img_bot = np.hstack((cv2.resize(SGBM_disp, None, fx=self.fx, fy=self.fy), cv2.resize(BM_disp, None, fx=self.fx, fy=self.fy)))
             #pointCloudColor = self.depth_and_color(img=BM_disp.copy(),left_rectified=left_rectified)
-            pointCloudColor = self.depth_and_color(img=SGBM_disp.copy(),left_rectified=left_rectified)
+            pointCloudColor = self.depth_and_color(img=SGBM_disp.copy(),img2=BM_disp.copy(), left_rectified=left_rectified, gray_left=gray_left, gray_right=gray_right)
 
             cv2.imshow('img_bot ', img_bot)
             #cv2.imshow('out ', cv2.resize(out, None, fx=self.fx, fy=self.fy))
@@ -397,6 +514,37 @@ class CombinedCalibration(object):
             if k & 0xFF == ord('q'):
                 wait = 1
                 #break
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    def gridSearchdepth(self, testImages):
+        self.read_images(path=testImages)
+        self.left_matcher = None
+        wait = 0
+        for i, fname in enumerate(self.LeftImg):
+            leftFrame = self.LeftImg[i]
+            rightFrame = self.RightImg[i]
+
+            left_rectified = cv2.remap(leftFrame, self.leftMapX, self.leftMapY, cv2.INTER_LINEAR, cv2.BORDER_CONSTANT)
+            right_rectified = cv2.remap(rightFrame, self.rightMapX, self.rightMapY, cv2.INTER_LINEAR,
+                                        cv2.BORDER_CONSTANT)
+
+            gray_left = cv2.cvtColor(left_rectified, cv2.COLOR_BGR2GRAY)
+            gray_right = cv2.cvtColor(right_rectified, cv2.COLOR_BGR2GRAY)
+
+            numDisparities = [128, 256,256*2,256*3,256*4,256*5,256*6,256*7,256*8,256*9]
+            winsize = [5,15,35,75,125,235]
+            for d in numDisparities:
+                for w in winsize:
+                    print('numDisparities:{}, winsize:{}'.format(d,w))
+                    name = 'out_d{}_w{}.ply'.format(d,w)
+                    self.left_matcher = None
+                    SGBM_disp, BM_disp = self.depth_map_SGBM(gray_left, gray_right, numDisparities = d,window_size = w)  # Get the disparity map
+
+                    pointCloudColor = self.depth_and_color(img=SGBM_disp.copy(), left_rectified=left_rectified, name=name)
+                    cv2.imshow('pointCloudColor', cv2.resize(pointCloudColor, None, fx=self.fx, fy=self.fy))
+
+                    cv2.waitKey(100)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 

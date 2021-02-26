@@ -284,8 +284,8 @@ class MonoChess_Calibrator:
                                             "obj_points": obj_points, })
         self.calibration_df.sort_values("image_names")
         self.calibration_df = self.calibration_df.reset_index(drop=True)
-        print('start calibration obj_points:{},  img_points:{}'.format(np.shape(self.calibration_df.obj_points),
-                                                                       np.shape(self.calibration_df.img_points)))
+        print('start calibration obj_points:{},  img_points:{}'.format(np.shape(self.calibration_df.obj_points.ravel()),
+                                                                       np.shape(self.calibration_df.img_points.ravel())))
 
     def calibrate(self, flags=0, project=True, K=None,D=None, save=False):
         self.K = K
@@ -296,6 +296,7 @@ class MonoChess_Calibrator:
             flags |= cv2.CALIB_FIX_PRINCIPAL_POINT
             flags |= cv2.CALIB_USE_INTRINSIC_GUESS
             flags |= cv2.CALIB_FIX_FOCAL_LENGTH
+            #flags = cv2.CALIB_FIX_ASPECT_RATIO
         elif self.D is not None:
             print('Use fixed D - estimate only K matrix')
             flags |= cv2.CALIB_FIX_K1

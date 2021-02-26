@@ -43,7 +43,7 @@ class MonoCharuco_Calibrator(object):
     def __init__(self, name='', figsize=(12, 10)):
         self.name=name
         self.image_size = None  # Determined at runtime
-        self.term_criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 3000, 0.000001)
+        self.term_criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 30000, 0.0000001)
         #self.term_criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 30, 0.001)
         self.figure_size=(12,10)
         self.debug_dir = None
@@ -58,7 +58,6 @@ class MonoCharuco_Calibrator(object):
 
         self.fx = 0.45
         self.fy = 0.4
-
         self.see = True
         self.flipVertically = True
         self.stdDeviationsIntrinsics, self.stdDeviationsExtrinsics, self.perViewErrors = None,None,None
@@ -71,6 +70,7 @@ class MonoCharuco_Calibrator(object):
         markerLength	marker side length (same unit than squareLength)
         '''
         self.ARUCO_DICT = aruco.Dictionary_get(aruco.DICT_5X5_1000)
+        #self.ARUCO_DICT = aruco.Dictionary_get(aruco.DICT_4X4_1000)
         self.CHARUCO_BOARD = aruco.CharucoBoard_create(
             squaresX=squaresX, squaresY=squaresY,
             squareLength=squareLength,
@@ -88,6 +88,32 @@ class MonoCharuco_Calibrator(object):
             cv2.waitKey(0)
             cv2.destroyAllWindows()
 
+    def reprojection_error_plot(self, errors_, N, figure_size=(16, 12)):
+        if len(errors_)>1:
+            errInside = np.array(errors_[0]).squeeze()
+            errOutside = np.array(errors_[1]).squeeze()
+            data = []
+            for i in range(N):
+                data.append(['img_{}'.format(i), errInside[i], errOutside[i]])
+
+            df = pd.DataFrame(data, columns=["Name", "Inside(px)", "Outside(px)"])
+
+            ax = df.plot(x="Name", y=["Inside(px)", "Outside(px)"], kind="bar", figsize=figure_size, #grid=True,
+                    title='Reprojection_error plot - {}'.format(name))
+
+            avg_error_inside = np.sum(errInside) / len(errInside)
+            y_mean_inside = [avg_error_inside] * N
+            ax.plot(y_mean_inside, label='Mean Reprojection error inside:{}'.format(round(avg_error_inside,2)), linestyle='--')
+
+            avg_error_outside = np.sum(errOutside) / len(errOutside)
+            y_mean_outside = [avg_error_outside] * N
+            ax.plot(y_mean_outside, label='Mean Reprojection error outside:{}'.format(round(avg_error_outside,2)), linestyle='--')
+
+            ax.legend(loc='upper right')
+            ax.set_xlabel("Image_names")
+            ax.set_ylabel("Reprojection error in px")
+            plt.show()
+
     def _calc_reprojection_error(self, figure_size=(16, 12), save_dir=None, limit=False):
         if self.perViewErrors is not None:
             print('Reproject train images')
@@ -95,7 +121,7 @@ class MonoCharuco_Calibrator(object):
             self.perViewErrors = np.array(self.perViewErrors).squeeze()
             avg_error = np.sum(np.array(self.perViewErrors)) / len(self.perViewErrors)
             print("The Mean Reprojection Error in pixels is:  {}".format(avg_error))
-            x = [os.path.basename(p) for p in self.calibration_df.image_names]
+            x = ['img_{}'.format(i) for i,p in enumerate(self.calibration_df.image_names)]
             y_mean = [avg_error] * len(self.calibration_df.image_names)
             fig, ax = plt.subplots()
             fig.set_figwidth(figure_size[0])
@@ -162,6 +188,7 @@ class MonoCharuco_Calibrator(object):
             print("The Mean Reprojection Error in pixels is:  {}".format(avg_error))
 
     def read_images(self, images, threads=5, K=None,D=None,limit = 9):
+        self.total = 0
         self.images=images
         print('There are {} images'.format(np.shape(images)))
         self.h, self.w = cv2.imread(images[0], 0).shape[:2]
@@ -219,7 +246,7 @@ class MonoCharuco_Calibrator(object):
                     #objPts, imgPts = aruco.getBoardObjectAndImagePoints(self.CHARUCO_BOARD, charuco_corners, charuco_ids)
                     imgPts = np.array(charuco_corners)
                     objPts = self.CHARUCO_BOARD.chessboardCorners.reshape((h, 1, 3))[np.asarray(charuco_ids).squeeze()] * self.distance_in_world_units
-
+                    self.total += len(imgPts)
                     if self.see:
                         #img1 = aruco.drawDetectedMarkers(image=img, corners=corners)
                         #img1 = cv2.drawChessboardCorners(img, (11, 8), charuco_corners, True)
@@ -279,8 +306,9 @@ class MonoCharuco_Calibrator(object):
         self.calibration_df.sort_values("image_names")
         self.calibration_df = self.calibration_df.reset_index(drop=True)
         cv2.destroyAllWindows()
-        print('start calibration corners_all:{},  ids_all:{}'.format(np.shape(self.calibration_df.corners_all.ravel()),
-                                                                       np.shape(self.calibration_df.ids_all.ravel())))
+        print('Total datapoints:{}'.format(self.total))
+        print('start calibration corners_all:{},  ids_all:{}'.format(np.shape(np.array(self.calibration_df.corners_all).squeeze()),
+                                                                       np.shape(np.array(self.calibration_df.ids_all).ravel())))
 
     def calibrate(self, flags=0, project=True, K=None, D=None, save=False, extended = False, old_style = False):
         self.K = K
@@ -291,6 +319,7 @@ class MonoCharuco_Calibrator(object):
             flags |= cv2.CALIB_FIX_PRINCIPAL_POINT
             flags |= cv2.CALIB_USE_INTRINSIC_GUESS
             flags |= cv2.CALIB_FIX_FOCAL_LENGTH
+
 
         charucoCorners = np.array(self.calibration_df.corners_all)
         charucoIds = np.array(self.calibration_df.ids_all)
@@ -622,14 +651,14 @@ class MonoCharuco_Calibrator(object):
                 plt.savefig(os.path.join(self.debug_dir, "camera_centric_view.png"))
         plt.show()
 
-    def doStuff(self, images, project=True, single_flag=True, K=None):
+    def doStuff(self, images, project=False, single_flag=True, K=None, extended = False):
         self.createCalibrationBoard()
         self.read_images(images = images, threads=1)
         if single_flag:
             flags = 0
         else:
             flags = self.calibrationReport()  # report with original data
-        self.calibrate(flags=flags, project=project, K=K, save=True)
+        self.calibrate(flags=flags, project=project, K=K, save=False, extended = extended)
         #self.visualize_calibration_boards()
 
     def adjustCalibration(self, K, D):
@@ -650,12 +679,6 @@ class MonoCharuco_Calibrator(object):
         #for the final calibration fix aspect ration
         flags |= cv2.CALIB_FIX_ASPECT_RATIO
         self.calibrate(flags=flags, project=True, save=True)
-
-        # do charuco calibration with charuco_corners and see if there are some difference
-        # do stereo charuco calibration
-        # do a combination of chessboards
-        # do inside calibration with given Distotion model -> estimate only K matrix
-
 
 if __name__ == '__main__':
     images = glob.glob(

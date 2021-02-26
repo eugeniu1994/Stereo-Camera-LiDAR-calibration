@@ -50,9 +50,11 @@ class StereoChess_Calibrator(object):
         self.fy = 0.3
 
         self.position = (20, 30)
-        self.see = False
+        self.see = True
         self.flipVertically = True
         self.name = name
+
+        self.total = 0
 
     def readMonoData(self):
         left_outside = load_obj(name='chess_{}_left'.format(self.name))
@@ -131,6 +133,8 @@ class StereoChess_Calibrator(object):
                     rt = cv2.cornerSubPix(gray_r, corners_r, (11, 11), (-1, -1), self.term_criteria)
                     self.imgpoints_r.append(corners_r)
                     ret_r = cv2.drawChessboardCorners(img_r, (10, 7), corners_r, ret_r)
+
+                    self.total+=len(corners_r)
 
                 if self.see:
                     cam_right_resized = cv2.resize(img_r, None, fx=self.fx, fy=self.fy)

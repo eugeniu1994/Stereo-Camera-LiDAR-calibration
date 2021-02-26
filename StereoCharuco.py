@@ -50,10 +50,11 @@ class StereoCharuco_Calibrator(object):
         self.fy = 0.3
 
         self.position = (20, 30)
-        self.see = False
+        self.see = True
         self.flipVertically = True
         self.name = name
         self.K_left,self.K_right,self.D_left,self.D_right = None,None,None,None
+        self.total = 0
 
     def createCalibrationBoard(self, squaresY = 9, squaresX = 12, squareLength = .06, markerLength = 0.045, display=False):
         self.ARUCO_DICT = aruco.Dictionary_get(aruco.DICT_5X5_1000)
@@ -203,7 +204,7 @@ class StereoCharuco_Calibrator(object):
                                     self.objpoints.append(np.array(obj3D))
                                     self.imgpoints_l.append(np.array(imgL_2D))
                                     self.imgpoints_r.append(np.array(imgR_2D))
-
+                                    self.total+=len(obj3D)
                                     for i in imgL_2D:
                                         (x, y) = i.ravel()
                                         cv2.circle(img_l, (x, y), 3, (0, 0, 255), 3)
