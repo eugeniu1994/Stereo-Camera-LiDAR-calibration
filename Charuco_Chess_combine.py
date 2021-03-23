@@ -280,13 +280,13 @@ class CombinedCalibration(object):
                                                                                   #flags=cv2.CALIB_ZERO_DISPARITY,
                                                                                   #alpha=-1)
 
-        self.leftMapX, self.leftMapY = cv2.initUndistortRectifyMap(
+        '''self.leftMapX, self.leftMapY = cv2.initUndistortRectifyMap(
             self.K_left, self.D_left, R1,
             P1, self.image_size, cv2.CV_32FC1)
 
         self.rightMapX, self.rightMapY = cv2.initUndistortRectifyMap(
             self.K_right, self.D_right, R2,
-            P2, self.image_size, cv2.CV_32FC1)
+            P2, self.image_size, cv2.CV_32FC1)'''
 
     def read_images(self, path):
         images_right = glob.glob(path + '/Right/*.png')
@@ -307,7 +307,7 @@ class CombinedCalibration(object):
             self.LeftImg.append(img_l)
             self.RightImg.append(img_r)
 
-    def depth_map_SGBM(self, imgL, imgR, numDisparities = 256, window_size = 11):
+    def depth_map_SGBM(self, imgL, imgR, numDisparities = 128, window_size = 5):
         if self.left_matcher is None:
             self.left_matcher = cv2.StereoSGBM_create(minDisparity=5,
                                                         numDisparities=numDisparities,
@@ -335,35 +335,59 @@ class CombinedCalibration(object):
         #SGBM_disp = SGBM_disp.astype(np.float32) / 16.0
         #SGBM_disp = cv2.normalize(SGBM_disp, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
 
-        BM_disp = self.stereo.compute(imgL, imgR)
-        BM_disp = cv2.normalize(src=BM_disp, dst=BM_disp, beta=0, alpha=255, norm_type=cv2.NORM_MINMAX)
-        BM_disp = np.uint8(BM_disp)
+        #BM_disp = self.stereo.compute(imgL, imgR)
+        #BM_disp = cv2.normalize(src=BM_disp, dst=BM_disp, beta=0, alpha=255, norm_type=cv2.NORM_MINMAX)
+        #BM_disp = np.uint8(BM_disp)
         #BM_disp = BM_disp.astype(np.float32) / 16.0
+        window_size = 9
+
+        min_disp = 16
+        num_disp = 112 - min_disp
+
+        stereo = cv2.StereoSGBM_create(minDisparity=min_disp,
+                                      numDisparities=num_disp,
+                                      blockSize=window_size,
+                                      )
+        #BM_disp = stereo.compute(imgL, imgR).astype(np.float32) / 16.0
+        BM_disp = stereo.compute(imgR, imgL).astype(np.float32) / 16.0
 
         return SGBM_disp, BM_disp
 
     def depth_and_color(self, img, img2=None, left_rectified=None, name = 'out.ply', gray_left=None,gray_right=None):
-        disparity_map = img
-        plt.imshow(disparity_map, cmap='gray', vmin=225, vmax=255)
+        disparity_map = img2
+        #plt.imshow(disparity_map, cmap='gray', vmin=225, vmax=255)
+        plt.imshow(disparity_map, cmap='gray')
+
         plt.show()
 
         focalLength, centerX, centerY = self.K_left[0,0], self.K_left[0,2], self.K_left[1,2]
-
+        fx,fy = self.K_left[0,0],self.K_left[1,1]
         Baseline = self.T[0]
         h,w = np.shape(disparity_map)
+        print('min {},  max:{}'.format(np.min(disparity_map), np.max(disparity_map)))
+
         print('np.shape(depth) {}'.format(np.shape(disparity_map)))
         scalingFactor = 150
         points, colors = [],[]
+
+        D = np.zeros_like(disparity_map)
         for v in range(250,w):
             for u in range(h):
                 #Z = (Baseline * focalLength) / (depth[u, v] * p)
-                if disparity_map[u, v] > 0:
+                if disparity_map[u, v] != 0:
                     color = left_rectified[u, v]
+
                     Z = disparity_map[u, v] / scalingFactor
+                    X = (u - centerX) * Z / fx
+                    Y = (v - centerY) * Z / fy
+                    Z = (fy*Baseline)/disparity_map[u,v]
+
+                    '''Z = disparity_map[u, v] / scalingFactor
                     if Z == 0: continue
                     X = (u - centerX) * Z / focalLength
                     Y = (v - centerY) * Z / focalLength
-                    Z = Baseline * focalLength / disparity_map[u, v]
+                    Z = Baseline * focalLength / disparity_map[u, v]'''
+
                     points.append([X,Y,Z])
                     colors.append(color)
 
@@ -371,9 +395,10 @@ class CombinedCalibration(object):
         points,colors = np.array(points), np.array(colors)
         write_ply('out1.ply', points, colors)
         print('out1.ply saved')
-#---------------------------------------    ----------------------------------------------------------------------------
-        points = cv2.reprojectImageTo3D(disparity_map, self.Q)
 
+#--------------------------------------    ----------------------------------------------------------------------------
+        points = cv2.reprojectImageTo3D(disparity_map, self.Q)
+        print('points:{}---------------------------------------------------------------'.format(np.shape(points)))
         reflect_matrix = np.identity(3)  # reflect on x axis
         reflect_matrix[0] *= -1
         points = np.matmul(points, reflect_matrix)
@@ -480,9 +505,11 @@ class CombinedCalibration(object):
             leftFrame = self.LeftImg[i]
             rightFrame = self.RightImg[i]
 
-            left_rectified = cv2.remap(leftFrame, self.leftMapX, self.leftMapY, cv2.INTER_LINEAR, cv2.BORDER_CONSTANT)
-            right_rectified = cv2.remap(rightFrame, self.rightMapX, self.rightMapY, cv2.INTER_LINEAR,
-                                        cv2.BORDER_CONSTANT)
+            #left_rectified = cv2.remap(leftFrame, self.leftMapX, self.leftMapY, cv2.INTER_LINEAR, cv2.BORDER_CONSTANT)
+            #right_rectified = cv2.remap(rightFrame, self.rightMapX, self.rightMapY, cv2.INTER_LINEAR,cv2.BORDER_CONSTANT)
+
+            left_rectified = cv2.remap(leftFrame, self.rightMapX, self.rightMapY, cv2.INTER_LINEAR, cv2.BORDER_CONSTANT)
+            right_rectified = cv2.remap(rightFrame, self.leftMapX, self.leftMapY, cv2.INTER_LINEAR,cv2.BORDER_CONSTANT)
 
             #out = right_rectified.copy()
             #out[:, :, 0] = left_rectified[:, :, 0]
@@ -495,11 +522,12 @@ class CombinedCalibration(object):
 
             img_top = cv2.hconcat(
                 [cv2.resize(left_rectified, None, fx=self.fx, fy=self.fy), cv2.resize(right_rectified, None, fx=self.fx, fy=self.fy)])
-
+            #cv2.imwrite('left_rectified1.png',left_rectified)
+            #cv2.imwrite('right_rectified1.png', right_rectified)
             SGBM_disp, BM_disp = self.depth_map_SGBM(gray_left, gray_right, )  # Get the disparity map
             self.SGBM_disp = SGBM_disp
-            if second:
-                self.d2(left_rectified, right_rectified)  # Get the disparity map
+            #if second:
+            #    self.d2(left_rectified, right_rectified)  # Get the disparity map
 
             img_bot = np.hstack((cv2.resize(SGBM_disp, None, fx=self.fx, fy=self.fy), cv2.resize(BM_disp, None, fx=self.fx, fy=self.fy)))
             #pointCloudColor = self.depth_and_color(img=BM_disp.copy(),left_rectified=left_rectified)

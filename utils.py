@@ -267,9 +267,10 @@ def write_ply(fn, verts, colors):
     property uchar blue
     end_header
     '''
-    out_colors = colors.copy()
     verts = verts.reshape(-1, 3)
-    verts = np.hstack([verts, out_colors])
+    if colors is not  None:
+        out_colors = colors.copy()
+        verts = np.hstack([verts, out_colors])
     with open('/home/eugeniu/Desktop/my_data/CameraCalibration/data/saved_files/'+fn, 'wb') as f:
         f.write((ply_header % dict(vert_num=len(verts))).encode('utf-8'))
-        np.savetxt(f, verts, fmt='%f %f %f %d %d %d ')
+        np.savetxt(f, verts, fmt='%f %f %f %d %d %d ' if colors is not None else '%f %f %f')
