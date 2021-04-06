@@ -1,4 +1,3 @@
-
 '''  CONFIDENTIAL
 
      Copyright (c) 2021 Eugeniu Vezeteu,
@@ -20,13 +19,14 @@
      software.
 '''
 
-
 import cv2
 import os
 from matplotlib import pyplot as plt
 from matplotlib.widgets import Slider, Button
 import numpy as np
 import json
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib
 
 def depth_map_(imgL, imgR):
     window_size = 15  # wsize default 3; 5; 7 for SGBM reduced size image; 15 for SGBM full size image (1300px and above); 5 Works nicely
@@ -107,14 +107,14 @@ D_left, D_right = camera_model['D_left'], camera_model['D_right']
 R = camera_model['R']
 T = camera_model['T']
 Q = camera_model_rectify['Q']
-print('Translation {}'.format(T[0,0]))
-fx,fy, cx,cy = K_left[0,0],K_left[1,1],K_left[0,2],K_left[1,2]
+print('Translation {}'.format(T[0, 0]))
+fx, fy, cx, cy = K_left[0, 0], K_left[1, 1], K_left[0, 2], K_left[1, 2]
 
 def create_point_cloud(depth_image, colors):
     shape = depth_image.shape
     rows = shape[0]
     cols = shape[1]
-    h,w,d = np.shape(colors)
+    h, w, d = np.shape(colors)
     points = np.zeros((rows * cols, 3), np.float32);
 
     bytes_to_units = (1.0 / 256.0);
@@ -124,11 +124,11 @@ def create_point_cloud(depth_image, colors):
     for r in range(0, rows):
         for c in range(0, cols):
             # Get the depth in bytes
-            depth = depth_image[r, c]; # depth_image[r, c, 0];
+            depth = depth_image[r, c];  # depth_image[r, c, 0];
 
             # If the depth is 0x0 or 0xFF, its invalid.
             # By convention it should be replaced by a NaN depth.
-            if(depth > 0 and depth < 255):
+            if (depth > 0 and depth < 255):
                 # The true depth of the pixel in units
                 z = depth * bytes_to_units;
 
@@ -141,7 +141,7 @@ def create_point_cloud(depth_image, colors):
                 points[i, 2] = np.nan;
             i = i + 1
 
-    points = points.reshape(h,w,d)
+    points = points.reshape(h, w, d)
     print('points:{}, colors:{}'.format(np.shape(points), np.shape(colors)))
 
     out_fn = 'create_point_cloud.ply'
@@ -195,9 +195,9 @@ def point_cloud(depth, colors):
     out_colors = out_colors[idx]
     write_ply(out_fn, out_points, out_colors)
 
-    #reproject on the image -----------------------------------
+    # reproject on the image -----------------------------------
     reflected_pts = np.matmul(out_points, reflect_matrix)
-    projected_img, _ = cv2.projectPoints(reflected_pts, np.identity(3), np.array([0., 0., 0.]), K_left,D_left)
+    projected_img, _ = cv2.projectPoints(reflected_pts, np.identity(3), np.array([0., 0., 0.]), K_left, D_left)
     projected_img = projected_img.reshape(-1, 2)
 
     blank_img = np.zeros(colors.shape, 'uint8')
@@ -210,11 +210,14 @@ def point_cloud(depth, colors):
             col = (int(img_colors[i, 2]), int(img_colors[i, 1]), int(img_colors[i, 0]))
             cv2.circle(blank_img, (pt_x, pt_y), 1, col)
 
-    return blank_img
+    return blank_img, out_points
+
 
 l = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/left_0.png'
 r = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/right_0.png'
-
+i=1
+l = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/cool/left_{}.png'.format(i)
+r = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/cool/right_{}.png'.format(i)
 imgLeft = cv2.imread(l, 0)
 imgRight = cv2.imread(r, 0)
 
@@ -223,11 +226,11 @@ image_shape = np.shape(imgLeft)
 print('image_shape:{}'.format(image_shape))
 undistortAgain = True
 if undistortAgain:
-    R1, R2, P1, P2, Q, roi_left, roi_right = cv2.stereoRectify(K_left, D_left, K_right, D_right, img_shape, R,T,
-                                                              flags=cv2.CALIB_ZERO_DISPARITY,
-                                                              #alpha=-1
-                                                              alpha=0
-                                                              )
+    R1, R2, P1, P2, Q, roi_left, roi_right = cv2.stereoRectify(K_left, D_left, K_right, D_right, img_shape, R, T,
+                                                               flags=cv2.CALIB_ZERO_DISPARITY,
+                                                               # alpha=-1
+                                                               alpha=0
+                                                               )
 
     leftMapX, leftMapY = cv2.initUndistortRectifyMap(
         K_left, D_left, R1,
@@ -243,9 +246,11 @@ width_right, height_right = imgRight.shape[:2]
 imgL = cv2.remap(imgLeft, leftMapX, leftMapY, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
 imgR = cv2.remap(imgRight, rightMapX, rightMapY, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
 # Depth map function
-global minDisparity, numDisparities,blockSize, P1, P2, disp12MaxDiff, uniquenessRatio,speckleWindowSize,speckleRange, preFilterCap, loading_settings
-minDisparity, numDisparities,blockSize, P1, P2, disp12MaxDiff, uniquenessRatio,speckleWindowSize,speckleRange, preFilterCap = -1, 15, 5, 8, 32, 12, 10,50,32,63
-lmbda, sigma = 80000,1.3
+global minDisparity, numDisparities, blockSize, P1, P2, disp12MaxDiff, uniquenessRatio, speckleWindowSize, speckleRange, preFilterCap, loading_settings
+minDisparity, numDisparities, blockSize, P1, P2, disp12MaxDiff, uniquenessRatio, speckleWindowSize, speckleRange, preFilterCap = -1, 15, 5, 8, 32, 12, 10, 50, 32, 63
+lmbda, sigma = 80000, 1.3
+
+
 def stereo_depth_map(imgL, imgR):
     left_matcher = cv2.StereoSGBM_create(
         minDisparity=minDisparity,
@@ -274,6 +279,8 @@ def stereo_depth_map(imgL, imgR):
     filteredImg = cv2.normalize(src=filteredImg, dst=filteredImg, beta=0, alpha=255, norm_type=cv2.NORM_MINMAX)
     filteredImg = np.uint8(filteredImg)
     return filteredImg
+
+
 tune = True
 if tune:
     cv2.imshow('left', cv2.resize(imgL, None, fx=.4, fy=.4))
@@ -290,14 +297,16 @@ if tune:
     plt.xticks([]), plt.yticks([])
     saveax = plt.axes([0.3, 0.41, 0.15, 0.04])  # stepX stepY width height
     buttons = Button(saveax, 'Save settings', color=axcolor, hovercolor='0.975')
+
     def save_map_settings(event):
         buttons.label.set_text("Saving...")
         print('Saving to file...')
-        result = json.dumps({'preFilterCap': preFilterCap, 'speckleRange': speckleRange, 'speckleWindowSize': speckleWindowSize, \
-                             'uniquenessRatio': uniquenessRatio, 'disp12MaxDiff': disp12MaxDiff, 'P2': P2, \
-                             'minDisparity': minDisparity, 'lmbda': lmbda, 'sigma': sigma, \
-                             'P1': P1, 'blockSize': blockSize, 'numDisparities': numDisparities}, \
-                            sort_keys=True, indent=4, separators=(',', ':'))
+        result = json.dumps(
+            {'preFilterCap': preFilterCap, 'speckleRange': speckleRange, 'speckleWindowSize': speckleWindowSize, \
+             'uniquenessRatio': uniquenessRatio, 'disp12MaxDiff': disp12MaxDiff, 'P2': P2, \
+             'minDisparity': minDisparity, 'lmbda': lmbda, 'sigma': sigma, \
+             'P1': P1, 'blockSize': blockSize, 'numDisparities': numDisparities}, \
+            sort_keys=True, indent=4, separators=(',', ':'))
         fName = '3dmap_set.txt'
         f = open(str(fName), 'w')
         f.write(result)
@@ -305,10 +314,12 @@ if tune:
         buttons.label.set_text("Save to file")
         print('Settings saved to file ' + fName)
 
+
     buttons.on_clicked(save_map_settings)
 
     loadax = plt.axes([0.5, 0.41, 0.15, 0.04])  # stepX stepY width height
     buttonl = Button(loadax, 'Load settings', color=axcolor, hovercolor='0.975')
+
 
     def load_map_settings(event):
         global loading_settings
@@ -337,13 +348,15 @@ if tune:
         loading_settings = 0
         update(0)
         print('Done!')
+
+
     buttonl.on_clicked(load_map_settings)
 
     # Building Depth Map for the first time
     disparity = stereo_depth_map(imgL, imgR)
 
     plt.subplot(1, 2, 2)
-    dmObject = plt.imshow(disparity, aspect='equal', cmap='gray') #, cmap='jet'
+    dmObject = plt.imshow(disparity, aspect='equal', cmap='gray')  # , cmap='jet'
     plt.xticks([]), plt.yticks([])
     plt.colorbar(dmObject)
 
@@ -369,8 +382,9 @@ if tune:
     sspeckleRange = Slider(SPWSaxe, 'speckleRange', 8, 256, valinit=speckleRange)
     spreFilterCap = Slider(preFilterCapaxe, 'preFilterCap', 8, 256, valinit=preFilterCap)
 
+
     def update(val):
-        global minDisparity, numDisparities,blockSize, P1, P2, disp12MaxDiff, uniquenessRatio,speckleWindowSize,speckleRange, preFilterCap, loading_settings
+        global minDisparity, numDisparities, blockSize, P1, P2, disp12MaxDiff, uniquenessRatio, speckleWindowSize, speckleRange, preFilterCap, loading_settings
         minDisparity = int(sminDisparity.val)
         numDisparities = int(snumDisparities.val)
         blockSize = int(sblockSize.val)
@@ -388,6 +402,7 @@ if tune:
             print('Redraw depth map')
             plt.draw()
 
+
     sminDisparity.on_changed(update)
     snumDisparities.on_changed(update)
     sblockSize.on_changed(update)
@@ -401,27 +416,39 @@ if tune:
     plt.show()
 
 print('create disparity map')
-#disparity = depth_map(imgL, imgR)
+# disparity = depth_map(imgL, imgR)
 disparity = stereo_depth_map(imgL, imgR)
 color_img = cv2.remap(cv2.imread(l), leftMapX, leftMapY, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
 
 colors = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
-#points = create_point_cloud(disparity.copy(),colors)
-img = point_cloud(disparity.copy(), colors)
-
+# points = create_point_cloud(disparity.copy(),colors)
+img, out_points = point_cloud(disparity.copy(), colors)
+print('out_points:{}'.format(np.shape(out_points)))
 
 cv2.imshow("disparity SGBM", cv2.resize(disparity, None, fx=.4, fy=.4))
-#cv2.imshow("left", cv2.resize(imgL, None, fx = .4, fy = .4))
-#cv2.imshow("right", cv2.resize(imgR, None, fx = .4, fy = .4))
-cv2.imshow("color_img", cv2.resize(color_img, None, fx = .4, fy = .4))
-cv2.imshow("reprojected", cv2.resize(img, None, fx = .4, fy = .4))
+# cv2.imshow("left", cv2.resize(imgL, None, fx = .4, fy = .4))
+# cv2.imshow("right", cv2.resize(imgR, None, fx = .4, fy = .4))
+cv2.imshow("color_img", cv2.resize(color_img, None, fx=.4, fy=.4))
+cv2.imshow("reprojected", cv2.resize(img, None, fx=.4, fy=.4))
 
 cv2.waitKey(0)
+cv2.destroyAllWindows()
+
+skip = 250
+data = out_points[::skip, :]
+print('data:{}'.format(np.shape(data)))
+
+'''fig = plt.figure(figsize=plt.figaspect(1))
+ax = plt.axes(projection='3d')
+#ax.set_axis_off()
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+ax.set_zlabel('Z')
+# Color map for the points
+cmap = matplotlib.cm.get_cmap('hsv')
+colors = cmap(data[:, -1] / np.max(data[:, -1]))
+ax.scatter(*data.T, c = colors)
+#ax.scatter(data[:,0],data[:,1],data[:,2])
+plt.show()'''
+
 view()
-#cv2.destroyAllWindows()
-
-
-
-
-
-
