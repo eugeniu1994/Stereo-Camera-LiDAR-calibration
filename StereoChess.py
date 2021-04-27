@@ -51,7 +51,7 @@ class StereoChess_Calibrator(object):
 
         self.position = (20, 30)
         self.see = True
-        self.flipVertically = True
+        self.flipVertically = False
         self.name = name
 
         self.total = 0

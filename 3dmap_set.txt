@@ -1,0 +1,14 @@
+{
+    "P1":18,
+    "P2":31,
+    "blockSize":19,
+    "disp12MaxDiff":62,
+    "lmbda":80000,
+    "minDisparity":-1,
+    "numDisparities":5,
+    "preFilterCap":140,
+    "sigma":1.3,
+    "speckleRange":68,
+    "speckleWindowSize":62,
+    "uniquenessRatio":27
+}

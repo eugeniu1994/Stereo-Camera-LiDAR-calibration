@@ -140,6 +140,7 @@ def _create_board_model(extrinsics, board_width, board_height, square_size, draw
     X_frame3[0:3, 0] = [0, 0, 0]
     X_frame3[0:3, 1] = [0, 0, height / 2]
 
+    print('X_board -> {}'.format(np.shape(X_board)))
     if draw_frame_axis:
         return [X_board, X_frame1, X_frame2, X_frame3]
     else:
@@ -158,6 +159,28 @@ def _draw_camera_boards(ax, camera_matrix, cam_width, cam_height, scale_focal,
     if patternCentric:
         X_moving = _create_camera_model(camera_matrix, cam_width, cam_height, scale_focal)
         X_static = _create_board_model(extrinsics, board_width, board_height, square_size)
+        X_static = []
+        # Make data.
+
+        X = np.arange(0, 11, 1)*square_size
+        xlen = len(X)
+        Y = np.arange(-8, 0, 1)*square_size
+        ylen = len(Y)
+        X, Y = np.meshgrid(X, Y)
+        R = np.sqrt(X ** 2 + Y ** 2)
+        Z = np.zeros_like(R)
+
+        # Create an empty array of strings with the same shape as the meshgrid, and
+        # populate it with two colors in a checkerboard pattern.
+        colortuple = ('w', 'k')
+        colors = np.empty(X.shape, dtype=str)
+        for y in range(ylen):
+            for x in range(xlen):
+                colors[y, x] = colortuple[(x + y) % len(colortuple)]
+
+        # Plot the surface with face colors taken from the array we made.
+        surf = ax.plot_surface(X,Z,Y, facecolors=colors, linewidth=0)
+
     else:
         X_static = _create_camera_model(camera_matrix, cam_width, cam_height, scale_focal, True)
         X_moving = _create_board_model(extrinsics, board_width, board_height, square_size)
@@ -228,9 +251,9 @@ def visualize_views(camera_matrix, rvecs, tvecs,
     ax.set_ylim(mid_y - max_range, mid_y + max_range)
     ax.set_zlim(mid_z - max_range, mid_z + max_range)
 
-    ax.set_xlabel('x')
-    ax.set_ylabel('z')
-    ax.set_zlabel('-y')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Z')
+    ax.set_zlabel('Y')
     if patternCentric:
         ax.set_title('Pattern Centric View')
         if save_dir:
@@ -239,6 +262,12 @@ def visualize_views(camera_matrix, rvecs, tvecs,
         ax.set_title('Camera Centric View')
         if save_dir:
             plt.savefig(os.path.join(save_dir, "camera_centric_view.png"))
+
+    #remove axes
+    #ax.set_xticks([])
+    #ax.set_yticks([])
+    #ax.set_zticks([])
+
     # plt.show()
 
 

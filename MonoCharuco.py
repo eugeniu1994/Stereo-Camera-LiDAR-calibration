@@ -44,6 +44,8 @@ class MonoCharuco_Calibrator(object):
         self.name=name
         self.image_size = None  # Determined at runtime
         self.term_criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 30000, 0.0000001)
+        self.term_criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 30, 0.01)
+
         #self.term_criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 30, 0.001)
         self.figure_size=(12,10)
         self.debug_dir = None
@@ -572,6 +574,29 @@ class MonoCharuco_Calibrator(object):
             if patternCentric:
                 X_moving = _create_camera_model(camera_matrix, cam_width, cam_height, scale_focal)
                 X_static = _create_board_model(extrinsics, board_width, board_height, square_size)
+
+                X_static = []
+                # Make data.
+
+                X = np.arange(0, 11, 1) * square_size
+                xlen = len(X)
+                Y = np.arange(-8, 0, 1) * square_size
+                ylen = len(Y)
+                X, Y = np.meshgrid(X, Y)
+                R = np.sqrt(X ** 2 + Y ** 2)
+                Z = np.zeros_like(R)
+
+                # Create an empty array of strings with the same shape as the meshgrid, and
+                # populate it with two colors in a checkerboard pattern.
+                colortuple = ('w', 'k')
+                colors = np.empty(X.shape, dtype=str)
+                for y in range(ylen):
+                    for x in range(xlen):
+                        colors[y, x] = colortuple[(x + y) % len(colortuple)]
+
+                # Plot the surface with face colors taken from the array we made.
+                surf = ax.plot_surface(X, Z, Y, facecolors=colors, linewidth=0)
+
             else:
                 X_static = _create_camera_model(camera_matrix, cam_width, cam_height, scale_focal, True)
                 X_moving = _create_board_model(extrinsics, board_width, board_height, square_size)

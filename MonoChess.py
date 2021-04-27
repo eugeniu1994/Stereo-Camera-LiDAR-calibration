@@ -389,7 +389,7 @@ class MonoChess_Calibrator:
         return flag
 
     def visualize_calibration_boards(self, cam_width=20.0, cam_height=10.0, scale_focal=40):
-        visualize_views(camera_matrix=self.K,
+        '''visualize_views(camera_matrix=self.K,
                         rvecs=self.calibration_df.rvecs,
                         tvecs=self.calibration_df.tvecs,
                         board_width=self.pattern_columns,
@@ -401,7 +401,7 @@ class MonoChess_Calibrator:
                         patternCentric=False,
                         figsize=self.figsize,
                         save_dir=self.debug_dir
-                        )
+                        )'''
         visualize_views(camera_matrix=self.K,
                         rvecs=self.calibration_df.rvecs,
                         tvecs=self.calibration_df.tvecs,

@@ -92,6 +92,7 @@ def view():
     import glob
     import open3d
     file = glob.glob('/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/*.ply')
+    file = glob.glob('/home/eugeniu/Desktop/my_data/CameraCalibration/scripts/*.ply')
     for i, file_path in enumerate(file):
         print("{} Load a ply point cloud, print it, and render it".format(file_path))
         pcd = open3d.io.read_point_cloud(file_path)
@@ -215,7 +216,7 @@ def point_cloud(depth, colors):
 
 l = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/left_0.png'
 r = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/right_0.png'
-i=1
+i=11
 l = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/cool/left_{}.png'.format(i)
 r = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/cool/right_{}.png'.format(i)
 imgLeft = cv2.imread(l, 0)
@@ -224,7 +225,7 @@ imgRight = cv2.imread(r, 0)
 print('imgLeft:{}, imgRight:{}'.format(np.shape(imgLeft), np.shape(imgRight)))
 image_shape = np.shape(imgLeft)
 print('image_shape:{}'.format(image_shape))
-undistortAgain = True
+undistortAgain = True# False
 if undistortAgain:
     R1, R2, P1, P2, Q, roi_left, roi_right = cv2.stereoRectify(K_left, D_left, K_right, D_right, img_shape, R, T,
                                                                flags=cv2.CALIB_ZERO_DISPARITY,
@@ -240,14 +241,17 @@ if undistortAgain:
         K_right, D_right, R2,
         P2, img_shape, cv2.CV_32FC1)
 
-width_left, height_left = imgLeft.shape[:2]
-width_right, height_right = imgRight.shape[:2]
+    width_left, height_left = imgLeft.shape[:2]
+    width_right, height_right = imgRight.shape[:2]
 
-imgL = cv2.remap(imgLeft, leftMapX, leftMapY, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
-imgR = cv2.remap(imgRight, rightMapX, rightMapY, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+    imgL = cv2.remap(imgLeft, leftMapX, leftMapY, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+    imgR = cv2.remap(imgRight, rightMapX, rightMapY, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+else:
+    imgL = imgLeft
+    imgR = imgRight
 # Depth map function
 global minDisparity, numDisparities, blockSize, P1, P2, disp12MaxDiff, uniquenessRatio, speckleWindowSize, speckleRange, preFilterCap, loading_settings
-minDisparity, numDisparities, blockSize, P1, P2, disp12MaxDiff, uniquenessRatio, speckleWindowSize, speckleRange, preFilterCap = -1, 15, 5, 8, 32, 12, 10, 50, 32, 63
+minDisparity, numDisparities, blockSize, P1, P2, disp12MaxDiff, uniquenessRatio, speckleWindowSize, speckleRange, preFilterCap = -1, 10, 15, 8, 32, 12, 10, 50, 32, 63
 lmbda, sigma = 80000, 1.3
 
 
@@ -276,8 +280,12 @@ def stereo_depth_map(imgL, imgR):
     displ = np.int16(displ)
     dispr = np.int16(dispr)
     filteredImg = wls_filter.filter(displ, imgL, None, dispr)
-    filteredImg = cv2.normalize(src=filteredImg, dst=filteredImg, beta=0, alpha=255, norm_type=cv2.NORM_MINMAX)
+    #filteredImg = cv2.normalize(src=filteredImg, dst=filteredImg, beta=0, alpha=255, norm_type=cv2.NORM_MINMAX)
     filteredImg = np.uint8(filteredImg)
+
+    #stereo = cv2.StereoBM_create(numDisparities=numDisparities * 16, blockSize=blockSize)
+    #filteredImg = stereo.compute(imgL,imgR)
+
     return filteredImg
 
 
@@ -418,7 +426,11 @@ if tune:
 print('create disparity map')
 # disparity = depth_map(imgL, imgR)
 disparity = stereo_depth_map(imgL, imgR)
-color_img = cv2.remap(cv2.imread(l), leftMapX, leftMapY, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+if undistortAgain:
+    color_img = cv2.remap(cv2.imread(l), leftMapX, leftMapY, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+else:
+    l = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/cool/left_{}.png'.format(i)
+    color_img = cv2.imread(l)
 
 colors = cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB)
 # points = create_point_cloud(disparity.copy(),colors)
@@ -432,7 +444,6 @@ cv2.imshow("color_img", cv2.resize(color_img, None, fx=.4, fy=.4))
 cv2.imshow("reprojected", cv2.resize(img, None, fx=.4, fy=.4))
 
 cv2.waitKey(0)
-cv2.destroyAllWindows()
 
 skip = 250
 data = out_points[::skip, :]
@@ -452,3 +463,4 @@ ax.scatter(*data.T, c = colors)
 plt.show()'''
 
 view()
+cv2.destroyAllWindows()

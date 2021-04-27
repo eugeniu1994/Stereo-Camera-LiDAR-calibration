@@ -35,7 +35,7 @@ from utils import *
 class CombinedCalibration(object):
     def __init__(self, name = '', flipVertically = True):
         self.name = name
-        self.term_criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 30000, 0.000001)
+        self.term_criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_COUNT, 500, 0.0001)
         self.flipVertically = flipVertically
         self.fx = 0.3
         self.fy = 0.35
@@ -43,7 +43,7 @@ class CombinedCalibration(object):
         self.image_width = 1936
         self.image_height = 1216
 
-    def calibrateMono(self, imgChess, imgCharuco,see = False, save = True, cam = 'left'):
+    def calibrateMono_(self, imgChess, imgCharuco,see = False, save = True, cam = 'left'):
         Chess_calibrator = MonoChess_Calibrator(pattern_type="chessboard", pattern_rows=10,
                                           pattern_columns=7, distance_in_world_units=10,  # square is 10 cm
                                           figsize=(14, 10))
@@ -576,38 +576,112 @@ class CombinedCalibration(object):
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
-def MonoCombinedCalibration():
-    calibrator = CombinedCalibration(name='outside')
-    # calibrate right camera outside --------------------------------------------------------
-    imgCharuco = glob.glob(
-        '/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/charuco/outside/Right/*.png')
-    imgChess = glob.glob(
-        '/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/chess/outside/Right/*.png')
-    calibrator.calibrateMono(imgChess, imgCharuco, save=True, cam='right')
+    def calibrateMono(self, imgChess, imgCharuco,see = False, save = True, cam = 'left'):
+        Chess_calibrator = MonoChess_Calibrator(pattern_type="chessboard", pattern_rows=10,
+                                          pattern_columns=7, distance_in_world_units=10,  # square is 10 cm
+                                          figsize=(14, 10))
+        Chess_calibrator.see = see
+        Chess_calibrator.read_images(images_path_list=imgChess)
+        Chess_objectPoints = np.array(Chess_calibrator.calibration_df.obj_points)
+        Chess_imagePoints = np.array(Chess_calibrator.calibration_df.img_points)
 
-    # calibrate right camera inside ----------------------------------------------------------
-    calibrator.name = 'inside'
-    imgCharuco = glob.glob(
-        '/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/charuco/inside/Right/*.png')
-    imgChess = glob.glob(
-        '/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/chess/inside/Right/*.png')
-    calibrator.calibrateMono(imgChess, imgCharuco, save=True, cam='right')
+        Charuco_calibrator = MonoCharuco_Calibrator()
+        Charuco_calibrator.see = see
+        Charuco_calibrator.createCalibrationBoard()
+        Charuco_calibrator.read_images(images=imgCharuco, threads=1)
+        Charuco_objectPoints = np.array(Charuco_calibrator.calibration_df.obj_points)
+        Charuco_imagePoints = np.array(Charuco_calibrator.calibration_df.img_points)
+        self.image_size = Charuco_calibrator.image_size
+        print('Chess_objectPoints:{}, Chess_imagePoints:{}'.format(np.shape(Chess_objectPoints), np.shape(Chess_imagePoints)))
+        print('Charuco_objectPoints:{}, Chess_imagePoints:{}'.format(np.shape(Charuco_objectPoints), np.shape(Charuco_imagePoints)))
+        print('self.image_size ',self.image_size)
+        _objectPoints = np.append(Chess_objectPoints,Charuco_objectPoints)
+        _imagePoints = np.append(Chess_imagePoints, Charuco_imagePoints)
+        print('Total charuco datapoints:{}'.format(Charuco_calibrator.total))
+        total = Charuco_calibrator.total + (len(Chess_objectPoints)*70)
+        print('Total datapoints:{}'.format(total))
+
+        #for each distortion model perform the fucking calibration
+        Distorsion_models = {'ST': ['Standard', 0, 'Standard'],
+                             'RAT': ['Rational', cv2.CALIB_RATIONAL_MODEL, 'CALIB_RATIONAL_MODEL'],
+                             'THP': ['Thin Prism', cv2.CALIB_THIN_PRISM_MODEL, 'CALIB_THIN_PRISM_MODEL'],
+                             'TIL': ['Tilded', cv2.CALIB_TILTED_MODEL, 'CALIB_TILTED_MODEL'],  # }
+                             'RAT+THP': ['Rational+Thin Prism', cv2.CALIB_RATIONAL_MODEL + cv2.CALIB_THIN_PRISM_MODEL,
+                                         'CALIB_RATIONAL_MODEL + CALIB_THIN_PRISM_MODEL'],
+                             'THP+TIL': ['Thin Prism+Tilded', cv2.CALIB_THIN_PRISM_MODEL + cv2.CALIB_TILTED_MODEL,
+                                         'CALIB_THIN_PRISM_MODEL + CALIB_TILTED_MODEL'],
+                             'RAT+TIL': ['Rational+Tilded', cv2.CALIB_RATIONAL_MODEL + cv2.CALIB_TILTED_MODEL,
+                                         'CALIB_RATIONAL_MODEL + CALIB_TILTED_MODEL'],
+                             'CMP': ['Complete',
+                                     cv2.CALIB_RATIONAL_MODEL + cv2.CALIB_THIN_PRISM_MODEL + cv2.CALIB_TILTED_MODEL,
+                                     'Complete']}
+
+        calibration_results = pd.DataFrame(
+            {"params": ['fx', 'fy', 'px', 'py', 'sk', 'k1', 'k2', 'p1', 'p2', 'k3', 'k4', 'k5', 'k6',
+                        's1', 's2', 's3', 's4', 'tx', 'ty', 'Error']})
+        rms_all = ['Error']
+
+        for key in Distorsion_models:
+            print()
+            print(key, '->', Distorsion_models[key][0], ' , ', Distorsion_models[key][1], ' , ',
+                  Distorsion_models[key][2])
+            flags = Distorsion_models[key][1]
+
+            #self.calibrate(flags=flags, project=False, K=K)
+            print('_objectPoints:{}, _imagePoints:{}'.format(np.shape(_objectPoints), np.shape(_imagePoints)))
+            self.rms, self.K, self.D, self.rvecs, self.tvecs = cv2.calibrateCamera(
+                objectPoints=_objectPoints,
+                imagePoints=_imagePoints,
+                imageSize=self.image_size,
+                cameraMatrix=None, distCoeffs=None,
+                flags=flags, criteria=self.term_criteria)
+
+            print("\nRMS:", self.rms)
+            print("camera matrix:\n", self.K)
+            print("distortion coefficients: ", self.D.ravel())
+
+            s = np.array([self.K[0, 0], self.K[1, 1], self.K[0, 2], self.K[1, 2], self.K[0, 1]])
+            s = np.append(s, self.D)
+            calibration_results[str(key)] = pd.Series(s)
+            calibration_results.fillna('---', inplace=True)
+            rms_all.append(self.rms)
+
+        calibration_results.iloc[-1, :] = rms_all
+        calibration_results.iloc[-1, :] = calibration_results.iloc[-1, :].map(
+            lambda x: round(x, 4) if isinstance(x, (int, float)) else x)
+
+        save_csv(obj=calibration_results, name='FinalMonoCalibration_{}_{}_points'.format(self.name, total))
+
+
+
+
+
+
+
+def MonoCombinedCalibration():
+    calibrator = CombinedCalibration(name='right_outside')
+    # calibrate right camera outside --------------------------------------------------------
+    #imgCharuco = glob.glob('/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/charuco/outside/Right/*.png')
+    #imgChess = glob.glob('/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/chess/outside/Right/*.png')
+    #calibrator.calibrateMono(imgChess, imgCharuco, save=True, cam='right')
 
     # calibrate left camera outside-----------------------------------------------------------
-    calibrator.name = 'outside'
-    imgCharuco = glob.glob(
-        '/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/charuco/outside/Left/*.png')
-    imgChess = glob.glob(
-        '/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/chess/outside/Left/*.png')
-    calibrator.calibrateMono(imgChess, imgCharuco, save=True, cam='left')
+    #calibrator.name = 'left_outside'
+    #imgCharuco = glob.glob('/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/charuco/outside/Left/*.png')
+    #imgChess = glob.glob('/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/chess/outside/Left/*.png')
+    #calibrator.calibrateMono(imgChess, imgCharuco, save=True, cam='left')
+
+    # calibrate right camera inside ----------------------------------------------------------
+    calibrator.name = 'right_inside'
+    imgCharuco = glob.glob('/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/charuco/inside/Right/*.png')
+    imgChess = glob.glob('/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/chess/inside/Right/*.png')
+    calibrator.calibrateMono(imgChess, imgCharuco, save=True, cam='right')
 
     # calibrate left camera inside-----------------------------------------------------------
-    calibrator.name = 'inside'
-    imgCharuco = glob.glob(
-        '/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/charuco/inside/Left/*.png')
-    imgChess = glob.glob(
-        '/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/chess/inside/Left/*.png')
-    calibrator.calibrateMono(imgChess, imgCharuco, save=True, cam='left')
+    #calibrator.name = 'left_inside'
+    #imgCharuco = glob.glob('/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/charuco/inside/Left/*.png')
+    #imgChess = glob.glob('/home/eugeniu/Desktop/my_data/CameraCalibration/data/car_cam_data/chess/inside/Left/*.png')
+    #calibrator.calibrateMono(imgChess, imgCharuco, save=True, cam='left')
 
     return calibrator
 
