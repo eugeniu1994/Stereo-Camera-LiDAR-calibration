@@ -223,9 +223,10 @@ def car_shape():
     import json
     from mpl_toolkits.mplot3d import Axes3D
     import glob
+    import matplotlib.pyplot as plt
     #files = glob.glob('/home/eugeniu/Desktop/my_data/CameraCalibration/car_models_json/*.json')
     files = glob.glob('/home/eugeniu/Desktop/my_data/CameraCalibration/car_models_json/*leikesasi.json')
-    files = glob.glob('/home/eugeniu/Desktop/my_data/CameraCalibration/car_models_json/Skoda_Fabia-2011.json')
+    #files = glob.glob('/home/eugeniu/Desktop/my_data/CameraCalibration/car_models_json/Skoda_Fabia-2011.json')
 
     #leikesasi.json
     file = files[0]
@@ -241,6 +242,8 @@ def car_shape():
     with open(file) as json_file:
         data = json.load(json_file)
         print('data -> {}'.format(np.shape(data)))
+        print(data.keys())  # prints keys
+
         vertices = np.array(data['vertices'])*scale
         triangles = np.array(data['faces']) - 1
         print('vertices -> {},  triangles->{}'.format(np.shape(vertices), np.shape(triangles)))
@@ -251,7 +254,7 @@ def car_shape():
         ax.set_zlim([-1, 15])
         # ax.plot_trisurf(vertices[::skip, 0], vertices[::skip, 2], triangles[::skip], -vertices[::skip, 1], shade=True, color='grey')
         ax.plot_trisurf(vertices[::skip, 0], vertices[::skip, 2], triangles[::skip], -vertices[::skip, 1], shade=True,
-                        color='grey', alpha=.2)
+                        color='grey', alpha=.1)
 
     world_origin = np.zeros(3)
     dx, dy, dz = np.eye(3)
@@ -312,7 +315,7 @@ def car_shape():
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
     #ax.axis('auto')
-    #ax.set_axis_off()
+    ax.set_axis_off()
     axisEqual3D(ax, [world_origin])
     plt.show()
 
