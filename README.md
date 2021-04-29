@@ -11,6 +11,12 @@ Contains:
 - Camera-LiDAR occlusion handling
 - Sensors synchronisation and fusion
 
+### Use car 3D models
+3D car model are available under /car_models_json folder. Run it with:
+<iframe src="https://www.kaggle.com/embed/ebouteillon/load-a-3d-car-model?rvi=1&cellId=2&cellIds=2&kernelSessionId=22448532" height="300" style="margin: 0 auto; width: 100%; max-width: 950px;" frameborder="0" scrolling="auto" title="Load a 3D car model"></iframe>
+
+
+
 ## Camera-LiDAR extrinsic calibration
 - Data collection, & pointcloud filtering using RANSAC, see cam_lidar_data.py
 - Extract point cloud correspondences - see Fit_Points.py script, collect 3D-2D and 3D-3D data points. Estimate transformation between LiDAR-image pixels and LiDAR-3d stereo points.
