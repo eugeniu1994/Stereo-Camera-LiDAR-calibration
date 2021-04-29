@@ -27,3 +27,26 @@ Contains:
 - Stereo camera calibration using ChAruco, see StereoChess.py, example how to run main.py Charuco_MonoCalibration() function.
 
 - 3D reconstruction using points collected with ChAruco + chessboard, see Charuco_Chess_combine.py script, example to run see combinedChess_and_Charuco() function in the main.py script
+
+
+## License
+
+[![CC0](https://licensebuttons.net/p/zero/1.0/88x31.png)](https://creativecommons.org/publicdomain/zero/1.0/)
+
+CONFIDENTIAL
+
+     Copyright (c) 2021 Eugeniu Vezeteu,
+     Department of Remote Sensing and Photogrammetry,
+     Finnish Geospatial Research Institute (FGI), National Land Survey of Finland (NLS)
+     PERMISSION IS HEREBY LIMITED TO FGI'S INTERNAL USE ONLY. THE CODE
+     MAY BE RE-LICENSED, SHARED, OR TAKEN INTO OTHER USE ONLY WITH
+     A WRITTEN CONSENT FROM THE HEAD OF THE DEPARTMENT.
+
+
+     The software is provided "as is", without warranty of any kind, express or
+     implied, including but not limited to the warranties of merchantability,
+     fitness for a particular purpose and noninfringement. In no event shall the
+     authors or copyright holders be liable for any claim, damages or other
+     liability, whether in an action of contract, tort or otherwise, arising from,
+     out of or in connection with the software or the use or other dealings in the
+     software.
