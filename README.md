@@ -11,8 +11,8 @@ Contains:
 - Camera-LiDAR occlusion handling
 - Sensors synchronisation and fusion
 
-### Use car 3D models
-3D car model are available under /car_models_json folder.
+### Use 3D car models
+3D car models are available under /car_models_json folder.
 #### Usage
 ```python
 import json
@@ -44,6 +44,8 @@ with open(file) as json_file:
 
 plt.show()
 ```
+<img src="car_design.png" align="center" />
+
 
 ## Camera-LiDAR extrinsic calibration
 - Data collection, & pointcloud filtering using RANSAC, see cam_lidar_data.py
