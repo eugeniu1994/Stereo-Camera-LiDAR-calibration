@@ -64,11 +64,11 @@ plt.show()
 
 - 3D reconstruction using points collected with ChAruco + chessboard, see Charuco_Chess_combine.py script, example to run see combinedChess_and_Charuco() function in the main.py script
 
-#Original view
-<img src="orginal_view.png" align="center" width="600" height="500" />
+# Original view
+<img src="orginal_view.png" align="center" />
 
-#Sensor synchronised, calibrated, fused and occlusion removed
-<img src="after_occlusion_reconstructed.png" align="center" width="600" height="500" />
+# Sensor synchronised, calibrated, fused and occlusion removed
+<img src="after_occlusion_reconstructed.png" align="center" />
 
 
 ## License
