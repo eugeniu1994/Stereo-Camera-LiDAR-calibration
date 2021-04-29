@@ -44,7 +44,7 @@ with open(file) as json_file:
 
 plt.show()
 ```
-<img src="car_design.png" align="center" />
+<img src="car_design.png" align="center" width="400" height="300" />
 
 
 ## Camera-LiDAR extrinsic calibration
@@ -63,6 +63,12 @@ plt.show()
 - Stereo camera calibration using ChAruco, see StereoChess.py, example how to run main.py Charuco_MonoCalibration() function.
 
 - 3D reconstruction using points collected with ChAruco + chessboard, see Charuco_Chess_combine.py script, example to run see combinedChess_and_Charuco() function in the main.py script
+
+#Original view
+<img src="orginal_view.png" align="center" width="600" height="500" />
+
+#Sensor synchronised, calibrated, fused and occlusion removed
+<img src="after_occlusion_reconstructed.png" align="center" width="600" height="500" />
 
 
 ## License
