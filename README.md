@@ -12,10 +12,37 @@ Contains:
 - Sensors synchronisation and fusion
 
 ### Use car 3D models
-3D car model are available under /car_models_json folder. Run it with:
-<iframe src="https://www.kaggle.com/embed/ebouteillon/load-a-3d-car-model?rvi=1&cellId=2&cellIds=2&kernelSessionId=22448532" height="300" style="margin: 0 auto; width: 100%; max-width: 950px;" frameborder="0" scrolling="auto" title="Load a 3D car model"></iframe>
+3D car model are available under /car_models_json folder.
+#### Usage
+```python
+import json
+from mpl_toolkits.mplot3d import Axes3D
+import glob
+import matplotlib.pyplot as plt
+
+#change the path here
+files = glob.glob('/car_models_json/*leikesasi.json')
+file = files[0]
+
+plt.figure(figsize=(20, 10))
+ax = plt.axes(projection='3d')
+
+scale = 5
+with open(file) as json_file:
+     data = json.load(json_file)
+     vertices = np.array(data['vertices'])
+     triangles = np.array(data['faces']) - 1
+     print('vertices -> {},  triangles->{}'.format(np.shape(vertices), np.shape(triangles)))
 
 
+     ax.set_xlim([-15, 15])
+     ax.set_ylim([-15, 15])
+     ax.set_zlim([-1, 15])
+     ax.plot_trisurf(vertices[:, 0], vertices[:, 2], triangles[:], -vertices[:, 1], shade=True,
+                        color='grey', alpha=.2)
+
+plt.show()
+```
 
 ## Camera-LiDAR extrinsic calibration
 - Data collection, & pointcloud filtering using RANSAC, see cam_lidar_data.py
