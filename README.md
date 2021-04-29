@@ -30,6 +30,7 @@ ax = plt.axes(projection='3d')
 scale = 5
 with open(file) as json_file:
      data = json.load(json_file)
+     print(data.keys()) #  (['car_type', 'vertices', 'faces']
      vertices = np.array(data['vertices'])
      triangles = np.array(data['faces']) - 1
      print('vertices -> {},  triangles->{}'.format(np.shape(vertices), np.shape(triangles)))
