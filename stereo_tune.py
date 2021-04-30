@@ -217,8 +217,8 @@ def point_cloud(depth, colors):
 l = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/left_0.png'
 r = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/right_0.png'
 i=11
-l = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/cool/left_{}.png'.format(i)
-r = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/cool/right_{}.png'.format(i)
+#l = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/cool/left_{}.png'.format(i)
+#r = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/cool/right_{}.png'.format(i)
 imgLeft = cv2.imread(l, 0)
 imgRight = cv2.imread(r, 0)
 
@@ -229,8 +229,8 @@ undistortAgain = True# False
 if undistortAgain:
     R1, R2, P1, P2, Q, roi_left, roi_right = cv2.stereoRectify(K_left, D_left, K_right, D_right, img_shape, R, T,
                                                                flags=cv2.CALIB_ZERO_DISPARITY,
-                                                               # alpha=-1
-                                                               alpha=0
+                                                               alpha=-1
+                                                               #alpha=0
                                                                )
 
     leftMapX, leftMapY = cv2.initUndistortRectifyMap(
@@ -280,7 +280,7 @@ def stereo_depth_map(imgL, imgR):
     displ = np.int16(displ)
     dispr = np.int16(dispr)
     filteredImg = wls_filter.filter(displ, imgL, None, dispr)
-    #filteredImg = cv2.normalize(src=filteredImg, dst=filteredImg, beta=0, alpha=255, norm_type=cv2.NORM_MINMAX)
+    filteredImg = cv2.normalize(src=filteredImg, dst=filteredImg, beta=0, alpha=255, norm_type=cv2.NORM_MINMAX)
     filteredImg = np.uint8(filteredImg)
 
     #stereo = cv2.StereoBM_create(numDisparities=numDisparities * 16, blockSize=blockSize)
