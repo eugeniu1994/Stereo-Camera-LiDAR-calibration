@@ -142,7 +142,7 @@ def triangulate(R1,R2,t1,t2,K1,K2,D1,D2, pts1, pts2):
 
     return np.array(_3d_points).squeeze()
 
-def test(R1,R2,t1,t2,imagePoint1,imagePoint2, K2=None,K1=None, D2=None,D1=None):
+def mai(R1,R2,t1,t2,imagePoint1,imagePoint2, K2=None,K1=None, D2=None,D1=None):
     # Set up two cameras near each other
     if K1 is None:
         K = np.array([
@@ -277,7 +277,7 @@ class PointCloud_filter(object):
                     print('depth:{}'.format(np.shape(self.depth)))
                     self.fxypxy = [self.K[0, 0], self.K[1, 1], self.cx, self.cy]
 
-                    print('TRIANGULATE HERE==========================================')
+                    '''print('TRIANGULATE HERE==========================================')
                     P_1 = np.vstack((np.hstack((np.eye(3), np.zeros(3)[:, np.newaxis])), [0, 0, 0, 1]))  # left  camera
                     P_2 = np.vstack((np.hstack((self.R, self.T)), [0, 0, 0, 1]))  # right camera
                     print('P1_{}, P_2{}, x_left:{}, x_right:{}'.format(np.shape(P_1), np.shape(P_2),
@@ -287,7 +287,7 @@ class PointCloud_filter(object):
                     print('X_w:{}, X1:{}, X2:{}, '.format(np.shape(X_w), np.shape(X1), np.shape(X2)))
                     print(X_w[0])
                     print(X1[0])
-                    print(X2[0])
+                    print(X2[0])'''
 
 
                     '''R1 = np.eye(3)
@@ -355,6 +355,7 @@ class PointCloud_filter(object):
                                                                                                    self.K_right,
                                                                                                    self.D_right, None,
                                                                                                    None)
+
                         if retval_left and retval_right:
                             self.QueryImg = aruco.drawAxis(self.QueryImg, self.K_left, self.D_left, self.rvecs,
                                                            self.tvecs, 0.3)
@@ -712,14 +713,22 @@ class PointCloud_filter(object):
         self.board_origin = [self.Tx, self.Ty, self.Tz] if given_origin is None else given_origin
         if self.chessBoard:
             self.nCols, self.nRows, org = 7 + 2, 10 + 2, np.asarray(self.board_origin)
-            org[0] -= self.nCols / 2
-            org[1] -= self.nRows / 2
+            #org[0] -= self.nCols / 2
+            #org[1] -= self.nRows / 2
+
+            org[0] -= 4
+            org[1] -= 6
+            #org = np.zeros(3)
             if self.lowerTemplate:
                 nrCols, nrRows = 2, 3
             else:
                 nrCols, nrRows = self.nCols, self.nRows
-            X, Y = np.linspace(org[0], org[0] + self.nCols, num=nrCols), np.linspace(org[1], org[1] + self.nRows,
+                #nrCols, nrRows = self.nCols+1, self.nRows+1 #remove later
+            print('org:{}, self.nCols - >{}, nrCols:{}'.format(org,self.nCols,nrCols))
+            X, Y = np.linspace(org[0], org[0] + self.nCols, num=nrCols), np.linspace(org[1], org[1] + self.nRows,num=nrRows)
+            X, Y = np.linspace(org[0], org[0] + self.nCols-1, num=nrCols), np.linspace(org[1], org[1] + self.nRows-1,
                                                                                      num=nrRows)
+            print('X:{}'.format(X))
             X, Y = np.meshgrid(X, Y)
             Z = np.full(np.shape(X), org[2])
             colors, colortuple = np.empty(X.shape, dtype=str), ('k', 'w')
@@ -745,7 +754,16 @@ class PointCloud_filter(object):
         Rot_matrix = self.eulerAnglesToRotationMatrix(angles)
         X, Y, Z = X * self.s, Y * self.s, Z * self.s
         corners = np.transpose(np.array([X, Y, Z]), (1, 2, 0))
+
         init = corners.reshape(-1, 3)
+
+        print('corners-----------------------------------------------------')
+        #print(init)
+        print('corners -> {}'.format(np.shape(init)))
+        dist_Lidar = distance_matrix(init, init)
+        print('dist_Lidar corners---------------------------------------------------------')
+        print(dist_Lidar[0, :11])
+
         translation = np.mean(init, axis=0)  # get the mean point
         corners = np.subtract(corners, translation)  # substract it from all the other points
         X, Y, Z = np.transpose(np.add(np.dot(corners, Rot_matrix), translation), (2, 0, 1))
@@ -763,6 +781,9 @@ class PointCloud_filter(object):
                 self.corn = self.ax.scatter(cornersToPLot[:, 0], cornersToPLot[:, 1], cornersToPLot[:, 2], c='tab:blue',
                                             marker='o', s=5)
         self.template_cloud = corners
+
+
+
         return np.array(corners)
 
     def getPointCoud(self, colorsMap='jet', skip=1, useRing = True):
@@ -1156,8 +1177,12 @@ class PointCloud_filter(object):
                                             textcoords='offset points', ha='right', va='bottom')
 
                 else:
-                    templatePoints = np.asarray(self.template_cloud.copy()).reshape(self.nCols, self.nRows, 3)[
-                                     1:self.nCols - 1, 1:self.nRows - 1, :]
+                    try:
+                        templatePoints = np.asarray(self.template_cloud.copy()).reshape(self.nCols, self.nRows, 3)[
+                                         1:self.nCols - 1, 1:self.nRows - 1, :]
+                    except:
+                        templatePoints = np.asarray(self.template_cloud.copy()).reshape(self.nCols+1, self.nRows+1, 3)[
+                                         1:self.nCols - 1, 1:self.nRows - 1, :]
                     # templatePoints = np.asarray(self.template_cloud.copy()).reshape(self.nRows,self.nCols, 3)[1:self.nRows-1,1:self.nCols-1,:]
 
                     self.templatePoints = np.array(templatePoints).reshape(-1, 3)
@@ -1235,35 +1260,136 @@ class PointCloud_filter(object):
 
     def getImagePixels(self):
         img = cv2.imread(self.img_file) #left image
+        img2 = cv2.imread(self.img_file2)  # left image
+
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        pixelsPoints = []
+        gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+        pixelsPoints,pixelsPoints2, _3DreconstructedBoard = [],[],[]
         if self.chessBoard:
             ret, corners = cv2.findChessboardCorners(gray, (10, 7), None)
-            if ret:  # found chessboard
+            ret2, corners2 = cv2.findChessboardCorners(gray2, (10, 7), None)
+            if ret and ret2:  # found chessboard
                 print('Found chessboard')
-                corners2 = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), self.criteria)
-                pixelsPoints = np.asarray(corners2).squeeze()
+                corners_2 = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), self.criteria)
+                corners2_2 = cv2.cornerSubPix(gray2, corners2, (11, 11), (-1, -1), self.criteria)
+                pixelsPoints = np.asarray(corners_2).squeeze()
+                pixelsPoints2 = np.asarray(corners2_2).squeeze()
+                cv2.drawChessboardCorners(img, (10, 7), corners_2, ret)
+                cv2.drawChessboardCorners(img2, (10, 7), corners2_2, ret)
+
+                # Find the rotation and translation vectors.
+                success, rvecs, tvecs, inliers = cv2.solvePnPRansac(self.objp, corners_2, self.K, self.D)
+                rvecs, _ = cv2.Rodrigues(rvecs)
+                _3Dpoints = self.objp
+                # project 3D points to image plane
+                _2Dpoints, jac = cv2.projectPoints(_3Dpoints, rvecs, tvecs, self.K, self.D)
+                _2Dpoints = np.array(_2Dpoints, dtype=np.float32).squeeze()
+                print('_2Dpoints -> {}'.format(np.shape(_2Dpoints)))
+                for i in range(len(_2Dpoints)):
+                    cv2.circle(img, tuple(_2Dpoints[i]), 5, (0, 255, 0), 3)
+                _3Dpoints = rvecs.dot(_3Dpoints.T) + tvecs
+                _3Dpoints = _3Dpoints.T
+                print('_3Dpoints->{}'.format(np.shape(_3Dpoints)))
+                dist_mat = distance_matrix(_3Dpoints, _3Dpoints)
+                print('dist_mat for OpencvReconstructed')
+                print(dist_mat[0, :11])
+                _3DreconstructedBoard = _3Dpoints
+            else:
+                return None,None
         else:
             corners, ids, rejectedImgPoints = aruco.detectMarkers(gray, self.ARUCO_DICT)
             corners, ids, rejectedImgPoints, recoveredIds = aruco.refineDetectedMarkers(
                 image=gray, board=self.calibation_board, detectedCorners=corners, detectedIds=ids,
                 rejectedCorners=rejectedImgPoints, cameraMatrix=self.K, distCoeffs=self.D)
 
-            if np.all(ids != None):
+            corners2, ids2, rejectedImgPoints2 = aruco.detectMarkers(gray2, self.ARUCO_DICT)
+            corners2, ids2, rejectedImgPoints2, recoveredIds2 = aruco.refineDetectedMarkers(
+                image=gray2, board=self.calibation_board, detectedCorners=corners2, detectedIds=ids2,
+                rejectedCorners=rejectedImgPoints2, cameraMatrix=self.K, distCoeffs=self.D)
+
+            if np.all(ids != None) and np.all(ids2 != None):
                 print('found charuco board, ids:{}'.format(np.shape(ids)))
-                if len(ids) > 0:
+                if len(ids) and len(ids2) > 0:
                     retval, self.rvecs, self.tvecs = aruco.estimatePoseBoard(corners, ids,
                                                                              self.calibation_board, self.K,
                                                                              self.D, None, None)
-                    if retval:
-                        self.dst, jacobian = cv2.Rodrigues(self.rvecs)
-                        a, circle_tvec, b = .49, [], 1
-                        imgpts, _ = cv2.projectPoints(self.pts, self.rvecs, self.tvecs, self.K, self.D)
-                        corners2 = np.append(imgpts, np.mean(imgpts, axis=0)).reshape(-1, 2)
 
+                    retval2, self.rvecs2, self.tvecs2 = aruco.estimatePoseBoard(corners2, ids2,
+                                                                             self.calibation_board, self.K,
+                                                                             self.D, None, None)
+                    img = aruco.drawDetectedMarkers(img, corners, ids,borderColor=(0, 0, 255))
+                    img2 = aruco.drawDetectedMarkers(img2, corners2, ids2, borderColor=(0, 0, 255))
+                    if retval and retval2:
+                        self.dst, jacobian = cv2.Rodrigues(self.rvecs)
+                        self.dst2, jacobian = cv2.Rodrigues(self.rvecs2)
+                        #self.pts = np.float32([[0, b, 0], [b, b, 0], [b, 0, 0], [-0.03, -0.03, 0]])
+                        b = 1
+                        self.pts = np.float32([[0, b, 0], [b, b, 0], [b, 0, 0], [-0.03, -0.03, 0],[.5,.5,0]])
+                        _3Dpoints = self.dst.T.dot(np.array(self.pts).squeeze().T) + self.tvecs
+
+                        _3Dpoints = _3Dpoints.T
+                        print('_3Dpoints->{}'.format(np.shape(_3Dpoints)))
+                        dist_mat = distance_matrix(_3Dpoints, _3Dpoints)
+                        print('dist_mat for OpencvReconstructed')
+                        print(dist_mat)
+                        _3DreconstructedBoard = _3Dpoints
+
+
+                        imgpts, _ = cv2.projectPoints(self.pts, self.rvecs, self.tvecs, self.K, self.D)
+                        #corners2 = np.append(imgpts, np.mean(imgpts, axis=0)).reshape(-1, 2)
+                        corners2 = np.array(imgpts).squeeze()
+                        self.pt_dict = {}
+                        for i in range(len(self.pts)):
+                            self.pt_dict[tuple(self.pts[i])] = tuple(imgpts[i].ravel())
+                        top_right = self.pt_dict[tuple(self.pts[0])]
+                        bot_right = self.pt_dict[tuple(self.pts[1])]
+                        bot_left = self.pt_dict[tuple(self.pts[2])]
+                        top_left = self.pt_dict[tuple(self.pts[3])]
+                        img = cv2.line(img, top_right, bot_right, (0, 255, 0), 4)
+                        img = cv2.line(img, bot_right, bot_left, (0, 255, 0), 4)
+                        img = cv2.line(img, bot_left, top_left, (0, 255, 0), 4)
+                        img = cv2.line(img, top_left, top_right, (0, 255, 0), 4)
+                        cv2.circle(img, tuple(corners2[-1]), 5, (0, 255, 0), 3)
+                        cv2.circle(img, tuple(corners2[-2]), 5, (0, 0, 255), 3)
                         pixelsPoints = np.asarray(corners2).squeeze()
 
-        return pixelsPoints
+
+                        imgpts, _ = cv2.projectPoints(self.pts, self.rvecs2, self.tvecs2, self.K, self.D)
+                        #corners2 = np.append(imgpts, np.mean(imgpts, axis=0)).reshape(-1, 2)
+                        corners2 = np.array(imgpts).squeeze()
+                        self.pt_dict = {}
+                        for i in range(len(self.pts)):
+                            self.pt_dict[tuple(self.pts[i])] = tuple(imgpts[i].ravel())
+                        top_right = self.pt_dict[tuple(self.pts[0])]
+                        bot_right = self.pt_dict[tuple(self.pts[1])]
+                        bot_left = self.pt_dict[tuple(self.pts[2])]
+                        top_left = self.pt_dict[tuple(self.pts[3])]
+
+                        img2 = cv2.line(img2, top_right, bot_right, (0, 255, 0), 4)
+                        img2 = cv2.line(img2, bot_right, bot_left, (0, 255, 0), 4)
+                        img2 = cv2.line(img2, bot_left, top_left, (0, 255, 0), 4)
+                        img2 = cv2.line(img2, top_left, top_right, (0, 255, 0), 4)
+                        cv2.circle(img2, tuple(corners2[-1]), 5, (0, 255, 0), 3)
+                        #cv2.circle(img2, tuple(corners2[-2]), 5, (0, 0, 255), 3)
+                        pixelsPoints2 = np.asarray(corners2).squeeze()
+
+
+                    else:
+                        return None,None
+                else:
+                    return None,None
+            else:
+                return None,None
+
+        scale = .4
+        _horizontal = np.hstack(
+            (cv2.resize(img, None, fx=scale, fy=scale), cv2.resize(img2, None, fx=scale, fy=scale)))
+
+        cv2.imshow('_horizontal', _horizontal)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+        return pixelsPoints,pixelsPoints2, _3DreconstructedBoard
 
     def savePointsCorrespondences(self, args):
         display = True
@@ -1282,22 +1408,47 @@ class PointCloud_filter(object):
 
             board_template = self.template_cloud
             board_template_ICP_finetuned = self.estimate
-            icp_finetuned_inside = np.asarray(self.estimate).reshape(self.nCols, self.nRows, 3)[1:self.nCols - 1,
-                                   1:self.nRows - 1, :]
-            icp_finetuned_inside = np.array(icp_finetuned_inside).reshape(-1, 3)
-            board_template_inside = board_template.reshape(self.nCols, self.nRows, 3)[1:self.nCols - 1,
-                                    1:self.nRows - 1, :]
-            board_template_inside = np.array(board_template_inside).reshape(-1, 3)
             closest_lidar_points = self.finaPoints
-            closest_lidar_points_inside = closest_lidar_points.reshape(self.nCols, self.nRows, 3)[1:self.nCols - 1,
-                                          1:self.nRows - 1, :]
+            try:
+                icp_finetuned_inside = np.asarray(self.estimate).reshape(self.nCols, self.nRows, 3)[1:self.nCols - 1,
+                                       1:self.nRows - 1, :]
+
+                board_template_inside = board_template.reshape(self.nCols, self.nRows, 3)[1:self.nCols - 1,
+                                        1:self.nRows - 1, :]
+
+                closest_lidar_points_inside = closest_lidar_points.reshape(self.nCols, self.nRows, 3)[1:self.nCols - 1,
+                                              1:self.nRows - 1, :]
+
+            except:
+                print('Second-----------------------------')
+                icp_finetuned_inside = np.asarray(self.estimate).reshape(self.nCols+1, self.nRows+1, 3)[1:self.nCols - 1,
+                                       1:self.nRows - 1, :]
+
+                board_template_inside = board_template.reshape(self.nCols+1, self.nRows+1, 3)[1:self.nCols - 1,
+                                        1:self.nRows - 1, :]
+                closest_lidar_points_inside = closest_lidar_points.reshape(self.nCols+1, self.nRows+1, 3)[1:self.nCols - 1,
+                                              1:self.nRows - 1, :]
+
+            icp_finetuned_inside = np.array(icp_finetuned_inside).reshape(-1, 3)
+            board_template_inside = np.array(board_template_inside).reshape(-1, 3)
+            print('board_template_inside-----------------------------------------------------')
+            print(board_template_inside)
+            print('board_template_inside -> {}'.format(np.shape(board_template_inside)))
+            dist_Lidar = distance_matrix(board_template_inside, board_template_inside)
+            print('dist_Lidar---------------------------------------------------------')
+            print(dist_Lidar[0, :11])
+
+
+
             closest_lidar_points_inside = np.array(closest_lidar_points_inside).reshape(-1, 3)
+
             Camera_XYZ = self.getCamera_XYZ()
             if self.img_file2:
                 Camera_XYZ_Stereo = self.getCamera_XYZ_Stereo()
             else:
                 Camera_XYZ_Stereo = np.array([[0, 0, 0]])
 
+            display = True
             if display:
                 print('board_template:{}'.format(np.shape(board_template)))
                 print('board_template_ICP_finetuned:{}'.format(np.shape(board_template_ICP_finetuned)))
@@ -1308,8 +1459,8 @@ class PointCloud_filter(object):
                 print('Camera_XYZ:{}'.format(np.shape(Camera_XYZ)))
                 print('Camera_XYZ_Stereo:{}'.format(np.shape(Camera_XYZ_Stereo)))
 
-            d2 = distance_matrix(Camera_XYZ_Stereo, Camera_XYZ_Stereo)
-            print('d2:{}'.format(d2))
+            #dist = distance_matrix(Camera_XYZ_Stereo, Camera_XYZ_Stereo)
+            #print('distance matrix Camera_XYZ_Stereo:{}'.format(dist))
 
             ax.scatter(*board_template.T, color='b', marker='o', alpha=.5, s=8)
             ax.scatter(*board_template_ICP_finetuned.T, color='r', marker='o', alpha=.5, s=8)
@@ -1319,19 +1470,6 @@ class PointCloud_filter(object):
             ax.scatter(*closest_lidar_points_inside.T, color='k', marker='x', alpha=1, s=20)
             ax.scatter(*Camera_XYZ.T, color='k', marker='x', alpha=1, s=30)
             ax.scatter(*Camera_XYZ_Stereo.T, color='r', marker='o', alpha=1, s=3)
-
-            #triangulate points
-            R1 = np.eye(3)
-            R2 = self.R
-            t1 = np.array([[0.], [0.], [0.]])
-            t2 = self.T
-
-            print('self.x_left->{}'.format(np.shape(self.x_left))) #70 x 2
-            point3D_trianguate = triangulate(R1=R1,R2=R2,t1=t1,t2=t2,K1=self.K, K2=self.K,D1=self.D,D2=self.D,pts1=self.x_left, pts2=self.x_right)
-            print('point3D_trianguate -> {}'.format(np.shape(point3D_trianguate)))
-            d3 = distance_matrix(point3D_trianguate, point3D_trianguate)
-            print('d3:{}'.format(d3))
-            ax.scatter(*point3D_trianguate.T, color='k', marker='o', alpha=1, s=10)
 
             self.AnnotateEdges(giveAX=ax, givenPoints=board_template_inside)
 
@@ -1344,8 +1482,9 @@ class PointCloud_filter(object):
             for ctr, dim in zip(centers, 'xyz'):
                 getattr(ax, 'set_{}lim'.format(dim))(ctr - r, ctr + r)
 
-            self.pixelsPoints = self.getImagePixels()
-            if len(self.pixelsPoints)<=0:
+            self.pixelsPointsLeft, self.pixelsPointsRight, _3DreconstructedBoard = self.getImagePixels()
+            print('_3DreconstructedBoard -> {}'.format(np.shape(_3DreconstructedBoard)))
+            if len(self.pixelsPointsLeft)<=0:
                 print('Cannot get pixels points !!! ')
 
             self.points_correspondences = dict([
@@ -1355,9 +1494,10 @@ class PointCloud_filter(object):
                 ('icp_finetuned_inside', icp_finetuned_inside),
                 ('closest_lidar_points', closest_lidar_points),
                 ('closest_lidar_points_inside', closest_lidar_points_inside),
-                ('pixelsPoints', self.pixelsPoints),
+                ('pixelsPointsLeft', self.pixelsPointsLeft),
+                ('pixelsPointsRight', self.pixelsPointsRight),
                 ('Camera_XYZ_Stereo', Camera_XYZ_Stereo),
-                ('point3D_trianguate', point3D_trianguate),
+                ('_3DreconstructedBoard',_3DreconstructedBoard),
                 ('Camera_XYZ', Camera_XYZ)])
 
             # save_obj(self.points_correspondences, self.name)
@@ -1421,15 +1561,22 @@ class PointCloud_filter(object):
             for ctr, dim in zip(centers, 'xyz'):
                 getattr(ax, 'set_{}lim'.format(dim))(ctr - r, ctr + r)
 
-
-            self.pixelsPoints = self.getImagePixels()
-            if len(self.pixelsPoints) <= 0:
+            self.pixelsPointsLeft, self.pixelsPointsRight, _3DreconstructedBoard = self.getImagePixels()
+            _3DreconstructedBoard = np.array(_3DreconstructedBoard).squeeze()
+            print('_3DreconstructedBoard -> {}'.format(np.shape(_3DreconstructedBoard)))
+            if len(self.pixelsPointsLeft) <= 0:
                 print('Cannot get pixels points !!! ')
+            ax.scatter(*_3DreconstructedBoard.T, color='b', marker='x', alpha=1, s=20)
+            print('pixelsPointsLeft:{}'.format(np.shape(self.pixelsPointsLeft)))
+            print('pixelsPointsRight:{}'.format(np.shape(self.pixelsPointsRight)))
+            print('_3DreconstructedBoard:{}'.format(np.shape(_3DreconstructedBoard)))
             self.points_correspondences = dict([
                 ('board_template', board_template),
                 ('board_template_ICP_finetuned', board_template_ICP_finetuned),
                 ('board_template_inside', board_template_inside),
-                ('pixelsPoints', self.pixelsPoints),
+                ('pixelsPointsLeft', self.pixelsPointsLeft),
+                ('pixelsPointsRight', self.pixelsPointsRight),
+                ('_3DreconstructedBoard',_3DreconstructedBoard),
                 ('Camera_XYZ_Stereo', Camera_XYZ_Stereo),
                 ('closest_lidar_points', closest_lidar_points)])
 
@@ -1782,7 +1929,7 @@ def getData(chess=True):
             print('Close')
             break
 
-    save_obj(GoodPoints, 'GoodPoints_3D3D_{}'.format('chess' if chess else 'charuco'))
+    save_obj(GoodPoints, 'GoodPoints2_{}'.format('chess' if chess else 'charuco'))
     print('Data saved in GoodPoints')
     showErros(_3DErros, IMageNames)
 
@@ -1808,7 +1955,9 @@ def euler_matrix(theta):
 
 class LiDAR_Camera_Calibration(object):
     def __init__(self, file, chess = True, debug=True):
-
+        self.criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.0001)
+        self.objp = np.zeros((7 * 10, 3), np.float32)
+        self.objp[:, :2] = np.mgrid[0:10, 0:7].T.reshape(-1, 2) * .1
         self.debug = debug
         self.file = file
         self.chess = chess
@@ -1858,15 +2007,18 @@ class LiDAR_Camera_Calibration(object):
 
     def readIntrinsics(self):
         name = 'inside'
-        # name = 'outside'
+        name = 'outside'
         self.camera_model = load_obj('{}_combined_camera_model'.format(name))
         self.camera_model_rectify = load_obj('{}_combined_camera_model_rectify'.format(name))
 
-        self.K_left = self.camera_model['K_left']
-        self.K_right = self.camera_model['K_right']
-        self.D_left = self.camera_model['D_left']
-        self.D_right = self.camera_model['D_right']
-
+        self.K_right = self.camera_model['K_left']
+        self.K_left = self.camera_model['K_right']
+        self.D_right = self.camera_model['D_left']
+        self.D_left = self.camera_model['D_right']
+        print(' self.K_right')
+        print( self.K_right)
+        print(' self.K_left')
+        print(self.K_left)
         self.R = self.camera_model['R']
         self.T = self.camera_model['T']
 
@@ -1874,11 +2026,12 @@ class LiDAR_Camera_Calibration(object):
         self.D = self.D_right
 
         print('self T before {}'.format(np.shape(self.T)))
-        self.T = np.array([-0.98, 0., 0.12])[:,np.newaxis]
+        #self.T = np.array([-0.98, 0., 0.12])[:,np.newaxis]
+        self.T = np.array([-0.96, 0., 0.12])[:, np.newaxis]
         print('self T after {}'.format(np.shape(self.T)))
         angles = np.array([np.deg2rad(0.68), np.deg2rad(22.66), np.deg2rad(-1.05)])
         self.R = euler_matrix(angles)
-        print(self.R)
+        #print(self.R)
         print('translation is {}-----------------------------'.format(self.T))
 
         img_shape = (1936, 1216)
@@ -1921,7 +2074,7 @@ class LiDAR_Camera_Calibration(object):
         print('Got camera-lidar extrinsics')
 
     def load_points(self):
-        self.Lidar_3D, self.Image_2D, self.Image_3D,self.Camera_XYZ = [],[],[],[]
+        self.Lidar_3D, self.Image_2D,self.Image_2D2, self.Image_3D,self.Camera_XYZ = [],[],[],[],[]
         with open(self.file,'rb') as f:
             self.dataPoinst = pickle.load(f)
 
@@ -1933,10 +2086,18 @@ class LiDAR_Camera_Calibration(object):
             try:
                 dictionary_data = self.dataPoinst[i]
                 LiDAR_3D_points = dictionary_data['board_template_inside'] #N x 3
-                pixelsPoints = dictionary_data['pixelsPoints']             #N x 2
-                StereoCam_3D_points = dictionary_data['Camera_XYZ_Stereo'] #N x 3
+
+                #pixelsPoints = dictionary_data['pixelsPoints']             #N x 2
+                #StereoCam_3D_points = dictionary_data['Camera_XYZ_Stereo'] #N x 3
+
+                pixelsPointsLeft = dictionary_data['pixelsPointsLeft']
+                pixelsPointsRight = dictionary_data['pixelsPointsRight']
+                StereoCam_3D_points = dictionary_data['_3DreconstructedBoard'] #N x 3
+
+
                 self.Lidar_3D.append(LiDAR_3D_points)
-                self.Image_2D.append(pixelsPoints)
+                self.Image_2D.append(pixelsPointsLeft)
+                self.Image_2D2.append(pixelsPointsRight)
                 self.Image_3D.append(StereoCam_3D_points)
 
                 if self.chess:
@@ -1945,11 +2106,13 @@ class LiDAR_Camera_Calibration(object):
                 #print('Cannot read data')
                 pass
 
+
+
         #self.Lidar_3D = np.array(self.Lidar_3D).reshape(-1,3)
         #self.Image_2D = np.array(self.Image_2D).reshape(-1,2)
         #self.Image_3D = np.array( self.Image_3D).reshape(-1,3)
-        print('Lidar_3D:{}, Image_2D:{}, Image_3D:{}'.format(np.shape(self.Lidar_3D),
-                                                                                   np.shape(self.Image_2D),
+        print('Lidar_3D:{}, Image_2D:{}, Image_2D2:{}, Image_3D:{}'.format(np.shape(self.Lidar_3D),
+                                                                                   np.shape(self.Image_2D),np.shape(self.Image_2D2),
                                                                                    np.shape(self.Image_3D)))
 
     def plotData(self):
@@ -2011,7 +2174,7 @@ class LiDAR_Camera_Calibration(object):
             R = v.T.dot(u.T)  # Rotation
             T = - R.dot(src_mean) + dst_mean  # Translation
             H = np.hstack((R, T[:, np.newaxis]))
-            return H,R,T
+            return H,R.T,T
         except:
             print('switch to python 2')
 
@@ -2722,7 +2885,7 @@ class LiDAR_Camera_Calibration(object):
         print('points->{}, color->{}'.format(np.shape(points), np.shape(color)))
         #plt.show()
         #self.write_ply('Lidar_cam.ply', points, color)
-        #self.view()
+        self.view()
         plt.show()
         def hsv_to_rgb(h, s, v):
             if s == 0.0:
@@ -2762,7 +2925,7 @@ class LiDAR_Camera_Calibration(object):
             print('Data point after sorting------------------------------')
 
             #---For each point create rectangle centered in current point
-            xGap,yGap = 100, 100
+            xGap,yGap = 20, 50
             xOffset, yOffset = int(xGap / 2), int(yGap / 2)
             def create_rectange(x,y,depth):
                 bl = [x-xOffset, y+yOffset] #bottom left
@@ -2785,7 +2948,7 @@ class LiDAR_Camera_Calibration(object):
             #df['tr0'] = tr[:, 0]
             #df['tr1'] = tr[:, 1]
             # For each point, project it if it does not belong in prev 5 points
-            t = .3
+            t = .5
             def lies_inside(bl, tr, p, dist): #bottom_left, top_right, poin, distance_left, distance_right
                 if (p[0] > bl[0] and p[0] < tr[0] and p[1] < bl[1] and p[1] > tr[1]):
                     if abs(p[-1]-dist)>t:
@@ -2817,7 +2980,7 @@ class LiDAR_Camera_Calibration(object):
             print('Compute neighbors')
             from sklearn.neighbors import NearestNeighbors
             X = np.array(df.iloc[:,0:2])
-            nbrs = NearestNeighbors(n_neighbors=15, algorithm='ball_tree').fit(X)
+            nbrs = NearestNeighbors(n_neighbors=10, algorithm='ball_tree').fit(X)
             distances, indices = nbrs.kneighbors(X)
             print('distances -> {}, indices->{}, df->{}'.format(np.shape(distances), np.shape(indices), np.shape(df)))
             df['nbrs_indices'] = indices[:,1:].tolist()
@@ -2928,8 +3091,8 @@ class LiDAR_Camera_Calibration(object):
         print('_3Dcolor->{},  _3Dcolor_->{}'.format(np.shape(_3Dcolor), np.shape(_3Dcolor_)))
         points = np.vstack((_3Dpoint, _3Dpoint_))
         color = np.vstack((_3Dcolor, _3Dcolor_))
-        points = np.vstack((_3Dpoint_, _3Dpoint))
-        color = np.vstack((_3Dcolor_, _3Dcolor))
+        #points = np.vstack((_3Dpoint_, _3Dpoint))
+        #color = np.vstack((_3Dcolor_, _3Dcolor))
         #points = _3Dpoint #np.vstack((_3Dpoint, _3Dpoint_))
         #color = _3Dcolor #np.vstack((_3Dcolor, _3Dcolor_))
         print('points->{}, color->{}'.format(np.shape(points), np.shape(color)))
@@ -3300,6 +3463,9 @@ class LiDAR_Camera_Calibration(object):
         dist_mat = distance_matrix(self.Image_3D[0],self.Image_3D[0])
         print('distance_matrix cam')
         print(dist_mat)
+        dist_mat = distance_matrix(self.Lidar_3D[0], self.Lidar_3D[0])
+        print('distance_matrix LiDAR')
+        print(dist_mat)
 
         #ax1.legend()
         #plt.show()
@@ -3316,8 +3482,6 @@ class LiDAR_Camera_Calibration(object):
         ax1.scatter(*Camera_points3D.T, label='Transformed LiDAR')
         ax1.legend()
         plt.show()
-
-
 
 
         #project on image ===========================================================
@@ -3367,7 +3531,396 @@ class LiDAR_Camera_Calibration(object):
         print('self.P1->{}'.format(np.shape(self.P1)))
         print(self.P1)
 
+        #-------------------------------------------------------------
+        l = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/chess/left/left_5.png'
+        img = cv2.imread(l)
 
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        ret, corners = cv2.findChessboardCorners(gray, (10, 7), None)
+        print('ret ->{}'.format(ret))
+        if ret == True:
+            corners2 = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), self.criteria)
+
+            # Find the rotation and translation vectors.
+            success, rvecs, tvecs, inliers = cv2.solvePnPRansac(self.objp, corners2, self.K, self.D)
+            print('success->{}  rvecs:{}, tvecs:{}, inliers:{}'.format(success, np.shape(rvecs), np.shape(tvecs), np.shape(inliers)))
+            #print(rvecs)
+            #print(tvecs)
+            rvecs,_ = cv2.Rodrigues(rvecs)
+
+            print('self.objp->{}'.format(np.shape(self.objp)))
+            _3Dpoints = self.objp
+            # project 3D points to image plane
+            _2Dpoints, jac = cv2.projectPoints(_3Dpoints, rvecs, tvecs, self.K, self.D)
+            _2Dpoints = np.array(_2Dpoints, dtype=np.float32).squeeze()
+            print('_2Dpoints -> {}'.format(np.shape(_2Dpoints)))
+            for i in range(len(_2Dpoints)):
+                cv2.circle(img, tuple(_2Dpoints[i]), 5, (0, 255, 0), 3)
+            _3Dpoints = rvecs.dot(_3Dpoints.T)+tvecs
+            _3Dpoints = _3Dpoints.T
+            #rvecs, tvecs, _3Dpoints, _2Dpoints
+            print('_3Dpoints->{}'.format(np.shape(_3Dpoints)))
+            print(_3Dpoints)
+            dist_mat = distance_matrix(_3Dpoints,_3Dpoints)
+            print('dist_mat')
+            print(dist_mat)
+            self.fig = plt.figure(figsize=plt.figaspect(1.))
+            ax1 = self.fig.add_subplot(1, 1, 1, projection='3d')
+            ax1.scatter(*_3Dpoints.T, label='OpenCV')
+            #ax1.scatter(*self.Image_3D[0].T, s=25, c='red', label='Stereo Cam points')
+            ax1.legend()
+
+
+        cv2.imshow('img', cv2.resize(img, None, fx=.4, fy=.4))
+        cv2.waitKey(0)
+        plt.show()
+        cv2.destroyAllWindows()
+
+    def doSomePlots(self):
+        points3D = np.array(self.Lidar_3D).reshape(-1, 3)
+        points2D = np.array(self.Image_2D).reshape(-1, 2)
+        print('points3D:{}, points2D:{}'.format(np.shape(points3D), np.shape(points2D)))
+
+        def readCalibrationExtrinsic():
+            calib_file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/solvePnP_extrinsics{}.npz'.format(
+                'chess' if self.chess else 'charuco')
+            calib_file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/combined_extrinsics{}.npz'
+            with open(calib_file, 'r') as f:
+                data = f.read().split()
+                #print('data:{}'.format(data))
+                qx = float(data[0])
+                qy = float(data[1])
+                qz = float(data[2])
+                qw = float(data[3])
+                tx = float(data[4])
+                ty = float(data[5])
+                tz = float(data[6])
+
+            q = Quaternion(qw, qx, qy, qz).transformation_matrix
+            q[0, 3],q[1, 3],q[2, 3] = tx,ty,tz
+            tvec = q[:3, 3]
+            rot_mat = q[:3, :3]
+            #rvec, _ = cv2.Rodrigues(rot_mat)
+            rvec = rot_mat
+            print('tvec -> {}'.format(tvec))
+
+            return rvec, tvec, q
+
+        #ground truth estimation
+        rvec, tvec, q = readCalibrationExtrinsic()
+        ground_truth_rotation = euler_from_matrix(rvec)
+        ground_truth_translation = np.array(tvec).squeeze()
+        ground_truth_rotation = np.array([(180.0 / math.pi) * i for i in ground_truth_rotation]).squeeze()
+        print('ground_truth_rotation: ', ground_truth_rotation)
+        print('ground_truth_translation: ', ground_truth_translation)
+
+        #randomly select 5%, 10%, 15%, ..., 100% of data points
+        #compute the transformation
+        #estimate the error between the ground truth
+        #save for later plot and plot it
+        percentage = np.linspace(2,100,20)
+        N = len(points3D) #
+        Idx = np.arange(0,len(points3D))
+        print('N -> {}'.format(N))
+        print('percentage -> {}'.format(percentage))
+        rot_, tran_ = [], []
+        for i in range(20):
+            rot, tran = [], []
+            for p in percentage:
+                nr_points = int(p*N/100)
+                #print(nr_points)
+                idx_points = np.random.choice(Idx, nr_points)
+                train_lidar = points3D[idx_points]
+                train_camera = points2D[idx_points]
+
+                imgp = np.array([train_camera], dtype=np.float32).squeeze()
+                objp = np.array([train_lidar], dtype=np.float32).squeeze()
+
+                retval, rvec, tvec = cv2.solvePnP(objp, imgp, self.K, self.D, flags=cv2.SOLVEPNP_ITERATIVE)
+                rvec,_ = cv2.Rodrigues(rvec)
+                tvec = np.array(tvec).squeeze()
+                _rotation = euler_from_matrix(rvec)
+                _rotation = np.array([(180.0 / math.pi) * i for i in _rotation])
+
+                err_rotation = np.abs(_rotation-ground_truth_rotation)
+                err_translation = np.abs(tvec - ground_truth_translation)
+                #print('err_rotation->{}, err_translation->{}'.format(np.shape(err_rotation), np.shape(err_translation)))
+                rot.append(err_rotation)
+                tran.append(err_translation)
+
+            print('rot->{}, tran->{}'.format(np.shape(rot), np.shape(tran)))
+            rot_.append(rot)
+            tran_.append(tran)
+        print('rot_->{}, tran_->{}'.format(np.shape(rot_), np.shape(tran_)))
+        rot_ = np.mean(rot_, axis=0)
+        tran_ = np.mean(tran_, axis=0)
+        print('rot_->{}, tran_->{}'.format(np.shape(rot_), np.shape(tran_)))
+        ticks = percentage * N / 100
+        print('ticks -> {}'.format(np.shape(ticks)))
+        plt.plot(ticks,rot_[:,0], label='X')
+        plt.plot(ticks,rot_[:, 1], label='Y')
+        plt.plot(ticks,rot_[:, 2], label='Z')
+        plt.legend()
+        plt.xlabel("n-points")
+        plt.ylabel("mean rotation error (degree)")
+
+        plt.xticks(ticks)
+        plt.show()
+
+        plt.plot(ticks,tran_[:, 0], label='X')
+        plt.plot(ticks,tran_[:, 1], label='Y')
+        plt.plot(ticks,tran_[:, 2], label='Z')
+        plt.xlabel("n-points")
+        plt.ylabel("mean translation error (m)")
+        plt.legend()
+        plt.show()
+
+    def do_holy_Final_calibration(self,viewData = False):
+        #get data
+        self.Lidar_3D = np.array(self.Lidar_3D)[:,-1,:]
+        self.Image_3D = np.array(self.Image_3D)[:, -1, :]
+        self.Image_2D = np.array(self.Image_2D)[:, -1, :]
+        self.Image_2D2 = np.array(self.Image_2D2)[:, -1, :]
+        print('self.Lidar_3D ->{}, self.Image_3D->{}'.format(np.shape(self.Lidar_3D), np.shape(self.Image_3D)))
+
+        points3D_Lidar = np.array(self.Lidar_3D, dtype=np.float32).reshape(-1, 3)
+        points3D_Camera = np.array(self.Image_3D, dtype=np.float32).reshape(-1, 3)
+        points2DLeft = np.array(self.Image_2D, dtype=np.float32).reshape(-1, 2)
+        points2DRight = np.array(self.Image_2D2, dtype=np.float32).reshape(-1, 2)
+
+        print('points3D_Lidar:{},points3D_Camera:{}, points2DLeft:{}, points2DRight:{}'.format(np.shape(points3D_Lidar),np.shape(points3D_Camera), np.shape(points2DLeft), np.shape(points2DRight)))
+
+        #visualize the data
+        if viewData:
+            for i in range(len(self.Lidar_3D)):
+                fig = plt.figure()
+                ax0 = fig.add_subplot(2, 2, 1, projection='3d')  # Lidar
+                ax0.set_title('Lidar points')
+                ax1 = fig.add_subplot(2, 2, 2, projection='3d')  # camera 3d
+                ax1.set_title('Camera 3D')
+                ax2 = fig.add_subplot(2, 2, 3)  # left pixels
+                ax2.set_title('Left px')
+                ax3 = fig.add_subplot(2, 2, 4)  # right pixels
+                ax3.set_title('Right px')
+                print(i)
+                ax0.clear()
+                ax0.scatter(*self.Lidar_3D[i].T)
+                ax0.set_title('Lidar points')
+                dist_Lidar = distance_matrix(self.Lidar_3D[i],self.Lidar_3D[i])
+                print('dist_Lidar---------------------------------------------------------')
+                print(dist_Lidar[0,:11])
+
+                ax1.clear()
+                ax1 = plt.axes(projection='3d')
+                ax1.scatter(*self.Image_3D[i].T, c='k', marker='v', alpha=1)
+                ax1.set_title('Camera 3D')
+                dist_Cam = distance_matrix(self.Image_3D[i], self.Image_3D[i])
+                print('dist_Cam---------------------------------------------------------')
+                print(dist_Cam[0,:11])
+                data = np.array(self.Image_3D).squeeze()
+                #ax1.plot_wireframe(data[i,:,0], data[i,:,1], data[i,:,2], rstride=1, cstride=1)
+
+                ax1.plot_trisurf(data[i,:,0], data[i,:,1], data[i,:,2],
+                               alpha=.4, color='grey', shade=False)
+                ax1.set_xlabel('X')
+                ax1.set_ylabel('Y')
+                ax1.set_zlabel('Z')
+                ax1.set_xticks([])
+                ax1.set_yticks([])
+                ax1.set_zticks([])
+                ax1.set_axis_off()
+                plt.show()
+
+                ax2.clear()
+                ax2.scatter(*self.Image_2D[i].T)
+                ax2.set_title('Left px')
+
+                ax3.clear()
+                ax3.scatter(*self.Image_2D2[i].T)
+                ax3.set_title('Right px')
+
+                plt.show()
+                break
+        #Calibrate LiDAR3d-Camera3D
+        self.fig = plt.figure(figsize=plt.figaspect(1.))
+        ax1 = self.fig.add_subplot(1, 1, 1, projection='3d')
+        ax1.set_xlabel('X', fontsize=8)
+        ax1.set_ylabel('Y', fontsize=8)
+        ax1.set_zlabel('Z', fontsize=8)
+        ax1.set_xlim([-3, 3])
+        ax1.set_ylim([-3, 3])
+        ax1.set_zlim([-3, 3])
+        # ax1.set_axis_off()
+
+        ax1.scatter(*self.Lidar_3D[0].T, c='blue', label='LiDAR points')
+        ax1.scatter(*self.Image_3D[0].T, s=25, c='red', label='Stereo Cam points')
+
+        #ax1.scatter(*points3D_Lidar.T, c='blue', label='LiDAR points2')
+        #ax1.scatter(*points3D_Camera.T, s=25, c='red', label='Stereo Cam points2')
+
+        # estimate transformation ====================================================
+        c, R, t = self.estimate(points3D_Lidar, points3D_Camera)
+        pad = lambda x: np.hstack([x, np.ones((x.shape[0], 1))])
+        unpad = lambda x: x[:, :-1]
+        # Solve the least squares problem X * A = Y # to find our transformation matrix A
+        A, res, rank, s = np.linalg.lstsq(pad(points3D_Lidar),  pad(points3D_Camera))
+        transform = lambda x: unpad(np.dot(pad(x), A))
+
+        #Camera_points3D = transform(np.array(self.Lidar_3D[0]))  # transformation estimated with LS
+        #ax1.scatter(*Camera_points3D.T, label='least square sol')
+
+        print('t:{}'.format(t))
+        angles = euler_from_matrix(R)
+        print('euler angles ', [(180.0 / math.pi) * i for i in angles])
+        Camera_points3D = self.Lidar_3D[0].dot(c * R) + t
+        #Camera_points3D = self.Lidar_3D[0].dot(R) + t
+        ax1.scatter(*Camera_points3D.T, label='SVD')
+        ax1.legend()
+        plt.show()
+        left_src = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/chess/left/left_0.png'
+        left_src = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/charuco/left/left_4.png'
+        left_img = cv2.imread(left_src)
+        cloud_file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/chess/cloud_0.npy'
+        cloud_file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/charuco/cloud_4.npy'
+        _3DPoints = np.array(np.load(cloud_file, mmap_mode='r'), dtype=np.float32)[:, :3]
+
+        # Left image--------------------------------------------------------------------------------------------
+        objPoints_left = _3DPoints.copy()
+        objPoints_left = objPoints_left.dot(c * R) + t
+        #objPoints_left  = np.array(transform(_3DPoints), dtype=np.float32).squeeze()  # transformation estimated with LS
+        #objPoints_left = Camera_points3D
+        print('objPoints_left ->{}'.format(np.shape(objPoints_left)))
+        print(objPoints_left)
+        points2D_left, _ = cv2.projectPoints(objPoints_left, np.eye(3), np.zeros(3), self.K_left, self.D_left)
+        points2D_left = np.squeeze(points2D_left)
+        print('objPoints_left -> {},  points2D_left -> {},  '.format(np.shape(objPoints_left), np.shape(points2D_left)))
+        inrange_left = np.where((points2D_left[:, 0] > 0) & (points2D_left[:, 1] > 0) &
+                                (points2D_left[:, 0] < left_img.shape[1] - 1) & (
+                                            points2D_left[:, 1] < left_img.shape[0] - 1))
+        points2D_left = points2D_left[inrange_left[0]].round().astype('int')
+        for i in range(len(points2D_left)):
+            cv2.circle(left_img, tuple(points2D_left[i]), 2, (0, 255, 0), -1)
+
+        cv2.imshow('left_img 3D-3D estimation', cv2.resize(left_img, None, fx=.4, fy=.4))
+        cv2.waitKey(0)
+        # cv2.destroyAllWindows()
+
+
+
+        #calibrate Lidar-> left camera
+        print('Calibrate LiDAR->Left camera===============================================================')
+        imgp = np.array([points2DLeft], dtype=np.float32).squeeze()
+        objp = np.array([points3D_Lidar], dtype=np.float32).squeeze()
+        print('imgp->{},objp->{}'.format(np.shape(imgp), np.shape(objp)))
+        retval, rvec, tvec = cv2.solvePnP(objp, imgp, self.K, self.D, flags=cv2.SOLVEPNP_ITERATIVE)
+        #success, rvec, tvec, inliers = cv2.solvePnPRansac(objp,imgp, self.K, self.D,flags=cv2.SOLVEPNP_ITERATIVE)
+        rvec, tvec = cv2.solvePnPRefineLM(objp, imgp, self.K, self.D, rvec, tvec)
+        rvec, jac = cv2.Rodrigues(rvec)
+        print("RMSE in pixel = %f" % self.rmse(objp, imgp, self.K_left, self.D_left, rvec, tvec))
+        print("T = ")
+        print(tvec)
+        print('Euler angles')
+        angles = euler_from_matrix(rvec)
+        self.Lidar_left_tvec = tvec
+        self.Lidar_left_rvec = rvec
+        print('euler angles ', [(180.0 / math.pi) * i for i in angles])
+
+        #test calibration LiDAR->Left camera
+        left_src = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/chess/left/left_0.png'
+        left_src = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/charuco/left/left_4.png'
+        left_img = cv2.imread(left_src)
+        cloud_file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/chess/cloud_0.npy'
+        cloud_file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/charuco/cloud_4.npy'
+        _3DPoints = np.array(np.load(cloud_file, mmap_mode='r'), dtype=np.float32)[:, :3]
+
+        #Left image--------------------------------------------------------------------------------------------
+        objPoints_left = _3DPoints.copy()
+        points2D_left, _ = cv2.projectPoints(objPoints_left, rvec, tvec, self.K_right, self.D_right)
+        points2D_left = np.squeeze(points2D_left)
+        print('objPoints_left -> {},  points2D_left -> {},  '.format(np.shape(objPoints_left), np.shape(points2D_left)))
+        inrange_left = np.where((points2D_left[:, 0] > 0) & (points2D_left[:, 1] > 0) &
+                                (points2D_left[:, 0] < left_img.shape[1] - 1) & (points2D_left[:, 1] < left_img.shape[0] - 1))
+        points2D_left = points2D_left[inrange_left[0]].round().astype('int')
+        for i in range(len(points2D_left)):
+            cv2.circle(left_img, tuple(points2D_left[i]), 2, (0,255,0), -1)
+
+        cv2.imshow('left_img',cv2.resize(left_img,None,fx=.4,fy=.4))
+        cv2.waitKey(0)
+        #cv2.destroyAllWindows()
+
+
+
+
+
+        #=======================================================================================
+        # calibrate Lidar-> right camera
+        print('Calibrate LiDAR->right camera===============================================================')
+        imgp = np.array([points2DRight], dtype=np.float32).squeeze()
+        objp = np.array([points3D_Lidar], dtype=np.float32).squeeze()
+        print('imgp->{},objp->{}'.format(np.shape(imgp), np.shape(objp)))
+        retval, rvec, tvec = cv2.solvePnP(objp, imgp, self.K, self.D, flags=cv2.SOLVEPNP_ITERATIVE)
+        #success, rvec, tvec, inliers = cv2.solvePnPRansac(objp,imgp, self.K, self.D,flags=cv2.SOLVEPNP_ITERATIVE)
+        rvec, tvec = cv2.solvePnPRefineLM(objp, imgp, self.K, self.D, rvec, tvec)
+        rmat, jac = cv2.Rodrigues(rvec)
+        print("RMSE in pixel = %f" % self.rmse(objp, imgp, self.K, self.D, rvec, tvec))
+        print("T = ")
+        print(tvec)
+        print('Euler angles')
+        self.Lidar_right_tvec = tvec
+        self.Lidar_right_rvec = rmat
+        angles = euler_from_matrix(rmat)
+        print('euler angles ', [(180.0 / math.pi) * i for i in angles])
+        print("Quaternion = ")
+        q = Quaternion(matrix=rmat).transformation_matrix
+        #tvec[2] = -.59
+        q[0, 3], q[1, 3], q[2, 3] = tvec[0], tvec[1], tvec[2]
+        # test calibration LiDAR->Left camera
+        src = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/chess/right/right_0.png'
+        src = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/charuco/right/right_4.png'
+        img = cv2.imread(src)
+        cloud_file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/chess/cloud_0.npy'
+        cloud_file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/charuco/cloud_4.npy'
+        _3DPoints = np.array(np.load(cloud_file, mmap_mode='r'), dtype=np.float32)[:, :3]
+
+        # Left image--------------------------------------------------------------------------------------------
+        objPoints_left = _3DPoints.copy()
+        Z = self.get_z(q, objPoints_left, self.K)
+        objPoints_left = objPoints_left[Z > 0]
+        points2D_left, _ = cv2.projectPoints(objPoints_left, rvec, tvec, self.K_right, self.D_right)
+        points2D_left = np.squeeze(points2D_left)
+        print('objPoints_left -> {},  points2D_left -> {},  '.format(np.shape(objPoints_left), np.shape(points2D_left)))
+        inrange_left = np.where((points2D_left[:, 0] > 0) & (points2D_left[:, 1] > 0) &
+                                (points2D_left[:, 0] < left_img.shape[1] - 1) & (
+                                            points2D_left[:, 1] < left_img.shape[0] - 1))
+        points2D_left = points2D_left[inrange_left[0]].round().astype('int')
+        for i in range(len(points2D_left)):
+            cv2.circle(img, tuple(points2D_left[i]), 2, (0, 255, 0), -1)
+
+        cv2.imshow('right_img', cv2.resize(img, None, fx=.4, fy=.4))
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+        print('=============================================================')
+        #test stereo calibration based on lidar extrinsics
+        stere_tvec = np.array([-0.96, 0., 0.12])[:, np.newaxis]
+        angles = euler_from_matrix(self.R)
+        stereo_angles = np.array([(180.0 / math.pi) * i for i in angles])
+        print('Stereo camera calibration extrinsics')
+        print('angles -> {}'.format(stereo_angles))
+        print('tvec -> {}'.format(stere_tvec.ravel()))
+
+        T_lidar_leftCam = np.vstack((np.hstack((self.Lidar_left_rvec, self.Lidar_left_tvec)), np.array([0, 0, 0, 1])[:,np.newaxis].T))
+        T_lidar_rightCam = np.vstack((np.hstack((self.Lidar_right_rvec, self.Lidar_right_tvec)), np.array([0, 0, 0, 1])[:,np.newaxis].T))
+
+        #T left cam to right cam is T1^-1 * T2
+        T_leftCam_rightCam = np.dot(T_lidar_rightCam,np.linalg.inv(T_lidar_leftCam))
+        rvec, tvec = T_leftCam_rightCam[:3, :3], T_leftCam_rightCam[:3, -1]
+        angles = euler_from_matrix(rvec)
+        angles = np.array([(180.0 / math.pi) * i for i in angles])
+        print('')
+        print('Lidar based camera calibration extrinsics')
+        print('angles -> {}'.format(angles))
+        print('tvec -> {}'.format(tvec))
 
 
 if __name__ == '__main__':
@@ -3375,18 +3928,21 @@ if __name__ == '__main__':
     collect_Data = False
 
     if collect_Data:
-        getData(chess=True)
+        getData(chess=False)
     else:
         name = 'chess' #works for both
-        #name = 'charuco' #works for both
+        name = 'charuco' #works for both
         file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/GoodPoints_{}.pkl'.format(name)
+        file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/GoodPoints2_{}.pkl'.format(name)
+
         chess = True if name == 'chess' else False
         calibrator = LiDAR_Camera_Calibration(file=file, chess = chess)
         calibrator.load_points()
         #calibrator.computeTransformation()
 
         #calibrator.plotData()
-        calibrator.calibrate_3D_3D()
+        #calibrator.calibrate_3D_3D()
+
         #calibrator.estimate()
         #3D-2D calibration & results
         #calibrator.calibrate_3D_2D(userRansac=False)
@@ -3395,5 +3951,8 @@ if __name__ == '__main__':
 
         #calibrator.combine_both_boards_and_train()
         #calibrator.reproject_on_3D()
-
+        #calibrator.doSomePlots()
         #calibrator.DLT()
+
+        #Calibreate Lidar->left camera,  Lidar->right camera, Lidar->3D points
+        calibrator.do_holy_Final_calibration(False)
