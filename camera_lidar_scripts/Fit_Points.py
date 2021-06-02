@@ -54,12 +54,37 @@ from collections import namedtuple
 from matplotlib.patches import Circle
 import mpl_toolkits.mplot3d.art3d as art3d
 
+from pyquaternion import Quaternion
+
 np.set_printoptions(suppress=True)
+
+def eulerAnglesToRotationMatrix2(theta):
+    R_x = np.array([[1, 0, 0],
+                    [0, math.cos(theta[0]), -math.sin(theta[0])],
+                    [0, math.sin(theta[0]), math.cos(theta[0])]
+                    ])
+
+    R_y = np.array([[math.cos(theta[1]), 0, math.sin(theta[1])],
+                    [0, 1, 0],
+                    [-math.sin(theta[1]), 0, math.cos(theta[1])]
+                    ])
+
+    R_z = np.array([[math.cos(theta[2]), -math.sin(theta[2]), 0],
+                    [math.sin(theta[2]), math.cos(theta[2]), 0],
+                    [0, 0, 1]
+                    ])
+
+    R = np.dot(R_z, np.dot(R_y, R_x))
+    return R
+Rot_matrix = eulerAnglesToRotationMatrix2([0, 0, np.deg2rad(-90)])
+InitLidar = True
+InitLidar = False
 
 global globalTrigger
 globalTrigger = True
 
 stereoRectify = False# True
+#stereoRectify = True
 
 class Annotation3D(Annotation):
     def __init__(self, s, xyz, *args, **kwargs):
@@ -265,8 +290,13 @@ class PointCloud_filter(object):
                     cv2.drawChessboardCorners(self.QueryImg2, (10, 7), corners2_right, ret_right)
                     self.pixels_right = np.asarray(corners2_right).squeeze()
 
+
+                    self.T = np.array([-0.977, 0.004, 0.215])[:, np.newaxis]
+                    angles = np.array([np.deg2rad(1.044), np.deg2rad(22.632), np.deg2rad(-.95)])
+                    self.R = euler_matrix(angles)
+                    #self.baseline =
+                    self.T = np.array([-1.07, 0.004, 0.215])[:, np.newaxis]
                     self.baseline = abs(self.T[0])
-                    #self.baseline = 1.07
 
                     print('baseline:{} m'.format(self.baseline))
                     self.focal_length, self.cx, self.cy = self.K[0, 0], self.K[0, 2], self.K[1, 2]
@@ -398,6 +428,12 @@ class PointCloud_filter(object):
                         self.pixelsPoints = self.corners2.squeeze()
                         self.pixels_left = self.pixelsPoints
                         self.pixels_right = self.corners2_right.squeeze()
+                        self.T = np.array([-0.977, 0.004, 0.215])[:, np.newaxis]
+                        angles = np.array([np.deg2rad(1.044), np.deg2rad(22.632), np.deg2rad(-.95)])
+                        self.R = euler_matrix(angles)
+                        # self.baseline =
+                        self.T = np.array([-1.07, 0.004, 0.215])[:, np.newaxis]
+
                         self.baseline = abs(self.T[0])
                         print('baseline:{} m'.format(self.baseline))
                         self.focal_length, self.cx, self.cy = self.K[0, 0], self.K[0, 2], self.K[1, 2]
@@ -575,8 +611,8 @@ class PointCloud_filter(object):
 
         self.legend_elements = [
             Line2D([0], [0], marker='o', color='w', label='Original pointcloud', markerfacecolor='g', markersize=4),
-            Line2D([0], [0], marker='o', color='w', label='template', markerfacecolor='b', markersize=4),
-            Line2D([0], [0], marker='o', color='w', label='ICP finetuned', markerfacecolor='r', markersize=4),
+            Line2D([0], [0], marker='o', color='w', label='Corners', markerfacecolor='k', markersize=4),
+            Line2D([0], [0], marker='o', color='w', label='Margins', markerfacecolor='r', markersize=4),
         ]
 
     def setUp(self):
@@ -790,6 +826,11 @@ class PointCloud_filter(object):
         # X, Y, Z, intensity, ring
         if useRing:
             originalCloud = np.array(np.load(self.file, mmap_mode='r'))[:,:5]
+            if InitLidar:
+                xyz = originalCloud[:, 0:3]
+                new_xyz = np.dot(xyz, Rot_matrix)
+                originalCloud[:, 0:3] = new_xyz
+
             #mean_x = np.mean(originalCloud[:, 0])
             #originalCloud[:, 0] = mean_x
             df = pd.DataFrame(data=originalCloud, columns=["X", "Y", "Z","intens","ring"])
@@ -824,6 +865,11 @@ class PointCloud_filter(object):
         #self.point_cloud = np.array(self.coolPoints, dtype=np.float32)
         self.point_cloud = np.array(np.load(self.file, mmap_mode='r')[::skip, :3], dtype=np.float32)
 
+        if InitLidar:
+            xyz = self.point_cloud[:, 0:3]
+            new_xyz = np.dot(xyz, Rot_matrix)
+            self.point_cloud[:, 0:3] = new_xyz
+
         # center the point_cloud
         #mean_x = np.mean(self.point_cloud[:, 0])
         #self.point_cloud[:, 0] = mean_x
@@ -843,7 +889,7 @@ class PointCloud_filter(object):
             self.p = pcl.PointCloud(self.point_cloud)
             inlier, outliner, coefficients = self.do_ransac_plane_segmentation(self.p, pcl.SACMODEL_PLANE,
                                                                                pcl.SAC_RANSAC, 0.01)
-            self.planeEquation(coef=np.array(coefficients).squeeze())
+            #self.planeEquation(coef=np.array(coefficients).squeeze())
             self.point_cloud_init = self.point_cloud.copy()
             if self.useVoxel:
                 pcd = o3d.geometry.PointCloud()
@@ -1087,6 +1133,10 @@ class PointCloud_filter(object):
         self.R = self.camera_model['R']
         self.T = self.camera_model['T']
 
+        self.T = np.array([-0.977, 0.004, 0.215])[:, np.newaxis]
+        angles = np.array([np.deg2rad(1.044), np.deg2rad(22.632), np.deg2rad(-.95)])
+        self.R = euler_matrix(angles)
+
         #self.T = np.array([-0.98, 0., 0.12])[:, np.newaxis]
         #self.T = np.array([-.75, 0., 0.])[:, np.newaxis]
 
@@ -1105,8 +1155,8 @@ class PointCloud_filter(object):
                                                                    imageSize=img_shape,
                                                                    R=self.camera_model['R'], T=self.camera_model['T'],
                                                                    flags=cv2.CALIB_ZERO_DISPARITY,
-                                                                   # alpha=-1
-                                                                   alpha=0
+                                                                   alpha=-1
+                                                                   #alpha=0
                                                                    )
         self.leftMapX, self.leftMapY = cv2.initUndistortRectifyMap(
             self.K_left, self.D_left, R1,
@@ -1225,8 +1275,11 @@ class PointCloud_filter(object):
         print('_3DPoints {}'.format(np.shape(_3DPoints)))
         print('tvec : {}'.format(np.asarray(self.tvecs).squeeze()))
         print('Camera_XYZ_Stereo mean {}'.format(np.mean(_3DPoints, axis=0)))
-
-        return np.array(_3DPoints).squeeze()
+        _3DPoints = np.array(_3DPoints).squeeze()
+        print('from disparity getCamera_XYZ_Stereo ')
+        d = distance_matrix(_3DPoints,_3DPoints)
+        print(d)
+        return _3DPoints
 
     def getCamera_XYZ(self):
         R_mtx, jac = cv2.Rodrigues(self.rvecs)
@@ -1929,7 +1982,7 @@ def getData(chess=True):
             print('Close')
             break
 
-    save_obj(GoodPoints, 'GoodPoints2_{}'.format('chess' if chess else 'charuco'))
+    #save_obj(GoodPoints, 'GoodPoints2_{}'.format('chess' if chess else 'charuco'))
     print('Data saved in GoodPoints')
     showErros(_3DErros, IMageNames)
 
@@ -1953,6 +2006,7 @@ def euler_matrix(theta):
 
     return R
 
+
 class LiDAR_Camera_Calibration(object):
     def __init__(self, file, chess = True, debug=True):
         self.criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.0001)
@@ -1972,7 +2026,10 @@ class LiDAR_Camera_Calibration(object):
                              'Camera_XYZ_Stereo','closest_lidar_points']
 
         self.readIntrinsics()
-        self.load_points()
+        try:
+            self.load_points()
+        except:
+            print('cannot load data points')
 
         '''self.Rotation = np.array([[ 0.94901505,  0.01681284,  0.3147821 ],
                                  [-0.01003801,  0.99968204, -0.02313113],
@@ -1992,6 +2049,8 @@ class LiDAR_Camera_Calibration(object):
     def rmse(self, objp, imgp, K, D, rvec, tvec):
         print('objp:{}, imgp:{}'.format(np.shape(objp), np.shape(imgp)))
         predicted, _ = cv2.projectPoints(objp, rvec, tvec, K, D)
+        print('rmse=====================================================')
+        print('predicted -> {},  type - >{}'.format(np.shape(predicted), type(predicted)))
         predicted = cv2.undistortPoints(predicted, K, D, P=K)
         predicted = predicted.squeeze()
 
@@ -2026,11 +2085,17 @@ class LiDAR_Camera_Calibration(object):
         self.D = self.D_right
 
         print('self T before {}'.format(np.shape(self.T)))
-        #self.T = np.array([-0.98, 0., 0.12])[:,np.newaxis]
         self.T = np.array([-0.96, 0., 0.12])[:, np.newaxis]
         print('self T after {}'.format(np.shape(self.T)))
         angles = np.array([np.deg2rad(0.68), np.deg2rad(22.66), np.deg2rad(-1.05)])
         self.R = euler_matrix(angles)
+
+        #-----------------------------------------------------
+        self.T = np.array([-0.977, 0.004, 0.215])[:, np.newaxis]
+        angles = np.array([np.deg2rad(1.044), np.deg2rad(22.632), np.deg2rad(-.95)])
+        self.R = euler_matrix(angles)
+
+
         #print(self.R)
         print('translation is {}-----------------------------'.format(self.T))
 
@@ -2075,8 +2140,12 @@ class LiDAR_Camera_Calibration(object):
 
     def load_points(self):
         self.Lidar_3D, self.Image_2D,self.Image_2D2, self.Image_3D,self.Camera_XYZ = [],[],[],[],[]
-        with open(self.file,'rb') as f:
-            self.dataPoinst = pickle.load(f)
+
+        with open(self.file, 'rb') as f:
+            self.dataPoinst = pickle.load(f, encoding='latin1')
+
+        #with open(self.file,'rb') as f:
+            #self.dataPoinst = pickle.load(f)
 
         self.N = len(self.dataPoinst)
         print('Got {} data views'.format(self.N))
@@ -2168,7 +2237,7 @@ class LiDAR_Camera_Calibration(object):
         src_mean = np.mean(src, axis=0)
         dst_mean = np.mean(dst, axis=0)
         # Compute covariance
-        try:
+        """try:
             H = reduce(lambda s, (a, b): s + np.outer(a, b), zip(src - src_mean, dst - dst_mean), np.zeros((3, 3)))
             u, s, v = np.linalg.svd(H)
             R = v.T.dot(u.T)  # Rotation
@@ -2176,7 +2245,7 @@ class LiDAR_Camera_Calibration(object):
             H = np.hstack((R, T[:, np.newaxis]))
             return H,R.T,T
         except:
-            print('switch to python 2')
+            print('switch to python 2')"""
 
     def calibrate_3D_3D_old(self):
         print('3D-3D ========================================================================================')
@@ -2800,6 +2869,11 @@ class LiDAR_Camera_Calibration(object):
             return rvec, tvec, q
 
         rvec, tvec, q = readCalibrationExtrinsic()
+        print(self.K)
+        print(self.D)
+        print(rvec)
+        print(tvec)
+
 
         i=1
         i=11
@@ -2885,8 +2959,8 @@ class LiDAR_Camera_Calibration(object):
         print('points->{}, color->{}'.format(np.shape(points), np.shape(color)))
         #plt.show()
         #self.write_ply('Lidar_cam.ply', points, color)
-        self.view()
-        plt.show()
+        #self.view()
+        #plt.show()
         def hsv_to_rgb(h, s, v):
             if s == 0.0:
                 return v, v, v
@@ -2934,7 +3008,6 @@ class LiDAR_Camera_Calibration(object):
 
             print('Adding rectangles')
 
-            import time
             #Rectangles = np.array([create_rectange(x=row['X'],y=row['Y'], depth = row['Z']) for index, row in df.iterrows()])
             vfunc = np.vectorize(create_rectange)
             Rectangles = vfunc(df['X'].values, df['Y'].values, df['Z'].values)
@@ -2980,7 +3053,11 @@ class LiDAR_Camera_Calibration(object):
             print('Compute neighbors')
             from sklearn.neighbors import NearestNeighbors
             X = np.array(df.iloc[:,0:2])
-            nbrs = NearestNeighbors(n_neighbors=10, algorithm='ball_tree').fit(X)
+            k=10
+
+
+            print('X -> {}'.format(np.shape(X)))
+            nbrs = NearestNeighbors(n_neighbors=k, algorithm='ball_tree').fit(X)
             distances, indices = nbrs.kneighbors(X)
             print('distances -> {}, indices->{}, df->{}'.format(np.shape(distances), np.shape(indices), np.shape(df)))
             df['nbrs_indices'] = indices[:,1:].tolist()
@@ -3058,8 +3135,147 @@ class LiDAR_Camera_Calibration(object):
 
             return good_points, cols,_3Dpoint, _3Dcolor
 
+        def filterOcclusion_(data):
+            print('data -> {}'.format(np.shape(data)))
+
+            # ---create a pandas Dataframe with X,Y,Z
+            print('Create a DataFrame')
+            df = pd.DataFrame(data, columns=['X','Y','Z','X3D','Y3X','Z3D','R','G','B'])
+
+            # ---sort it ascend by Z
+            print('Sort by Z')
+            df = df.sort_values(by=['Z'],kind='quicksort')
+
+            print('Data point after sorting------------------------------')
+            #---For each point create rectangle centered in current point
+            xGap,yGap = 20, 50
+            xOffset, yOffset = int(xGap / 2), int(yGap / 2)
+            def create_rectange(x,y,depth):
+                bl = [x-xOffset, y+yOffset] #bottom left
+                tr = [x+xOffset, y-yOffset] #top right
+                return [bl,tr,depth]
+
+            print('Adding rectangles')
+
+            #Rectangles = np.array([create_rectange(x=row['X'],y=row['Y'], depth = row['Z']) for index, row in df.iterrows()])
+            vfunc = np.vectorize(create_rectange)
+            Rectangles = vfunc(df['X'].values, df['Y'].values, df['Z'].values)
+            df['Rectangles'] = Rectangles
+
+            t = .5
+            def lies_inside(bl, tr, p, dist): #bottom_left, top_right, poin, distance_left, distance_right
+                if (p[0] > bl[0] and p[0] < tr[0] and p[1] < bl[1] and p[1] > tr[1]):
+                    if abs(p[-1]-dist)>t:
+                        return True
+                    else:
+                        return False
+                else:
+                    return False
+
+            def lies_inside_(bl0,bl1, tr0,tr1, p0,p1,p2, dist): #bottom_left, top_right, poin, distance_left, distance_right
+                if (p0 > bl0 and p0 < tr0 and p1 < bl1 and p1 > tr1):
+                    if abs(p2-dist)>t:
+                        return True
+                    else:
+                        return False
+                else:
+                    return False
+
+            lies_inside_ = np.vectorize(lies_inside_)
+            occluded = np.zeros_like(Z, dtype=bool)
+            projected = np.zeros_like(Z, dtype=bool)
+            df['occluded'] = occluded
+            df['projected'] = projected
+            idx = range(len(df))
+            df['idx'] = idx
+            df = df.set_index(['idx'])
+
+            # for each point check if the prev 5 points belongs to its rectangle -> if yes-> discard it
+            print('Compute neighbors')
+            from sklearn.neighbors import NearestNeighbors
+            #X = np.array(df.iloc[:,0:2])
+            X = np.array(df.iloc[:, 1])
+            nbrs = NearestNeighbors(n_neighbors=3, algorithm='ball_tree').fit(X)
+            distances, indices = nbrs.kneighbors(X)
+            print('distances -> {}, indices->{}, df->{}'.format(np.shape(distances), np.shape(indices), np.shape(df)))
+            df['nbrs_indices'] = indices[:,1:].tolist()
+
+            print(df.head())
+            import time
+            start = time.time()
+            print('Start projection')
+
+            def soc_iter(i):
+                print(i)
+                # take the neighbours that are already projected and not occluded
+                nbrs = df.iloc[i, -1]
+                prev_points = df.iloc[nbrs]  # .query('projected == 1 & occluded == 0') #5.82813405991 s
+                condition = (prev_points.projected == True) & (prev_points.occluded == False)
+                prev_points = prev_points[condition]  # time = 156.481780052 s
+
+                # print('nbrs -> {}, prev_points->{}, condition1->{}'.format(np.shape(nbrs), np.shape(prev_points), np.shape(condition)))
+                if len(prev_points) > 0:
+                    p = np.array(df.iloc[i, 0:3])  # current_point
+                    # time = 156.481780052 s
+                    Rectangles = prev_points['Rectangles']
+                    occlusion = [lies_inside(bl=point[0], tr=point[1], p=p, dist=point[-1]) for point in Rectangles]
+                    # time = 156.481780052 s
+                    #occlusion = lies_inside_(prev_points['bl0'].values, prev_points['bl1'].values, prev_points['tr0'].values, prev_points['tr1'].values, p[0], p[1], p[-1], prev_points['Z'].values)
+                    if np.any(occlusion):
+                        # print('point {} is occluded'.format(p))
+                        df.loc[i, 'occluded'] = True
+                df.loc[i, 'projected'] = True
+            soc_iter_vect = np.vectorize(soc_iter)
+
+            N = len(df)
+
+            m = np.linspace(start=1, stop=N-1, num=N-1, dtype=int)
+            print('m->{}, N:{}'.format(np.shape(m),N))
+            soc_iter_vect(m) # uncomment this
+
+            '''for i in range(1,2): #len(df)
+                print i
+                # take the neighbours that are already projected and not occluded
+                nbrs = df.iloc[i, -1]
+                prev_points = df.iloc[nbrs]#.query('projected == 1 & occluded == 0') #5.82813405991 s
+                condition = (prev_points.projected == True) & (prev_points.occluded == False)
+                prev_points = prev_points[condition]  #time = 156.481780052 s
+
+                #print('nbrs -> {}, prev_points->{}, condition1->{}'.format(np.shape(nbrs), np.shape(prev_points), np.shape(condition)))
+                if len(prev_points)>0:
+                    p = np.array(df.iloc[i, 0:3]) #current_point
+                    # time = 303.82229900
+                    #occlusion = (p[0] > (prev_points.X-xOffset)) & (p[0] < (prev_points.X+xOffset)) & (p[1] < (prev_points.Y+yOffset)) & (p[1] > (prev_points.Y-yOffset)) & (abs(p[-1] - prev_points.Z) > .3)
+                    #time = 156.481780052 s
+                    Rectangles = prev_points['Rectangles']
+                    occlusion = np.array([lies_inside(bl=point[0], tr=point[1], p=p, dist=point[-1]) for point in Rectangles])
+                    if np.any(occlusion):
+                        #print('point {} is occluded'.format(p))
+                        df.loc[i,'occluded'] = True
+                df.loc[i, 'projected'] = True'''
+            #soc_iter_vect(1)
+
+            end = time.time()
+            print('the publish took {}'.format(end - start))
+
+            print(df.head())
+            Points = np.array(df[df['occluded']==False]).squeeze()
+            good_points = Points[:,0:2].astype('int')
+            distance = Points[:,2]
+            _3Dpoint = Points[:,3:6]
+            _3Dcolor = Points[:, 6:9]
+
+            MIN_DISTANCE, MAX_DISTANCE = np.min(distance), np.max(distance)
+            colours = (distance - MIN_DISTANCE) / (MAX_DISTANCE - MIN_DISTANCE)
+            colours = np.asarray([np.asarray(hsv_to_rgb( c, np.sqrt(1), 1.0)) for c in colours])
+
+            cols = 255 * colours
+
+            return good_points, cols,_3Dpoint, _3Dcolor
+
+
         #points left
-        Z = np.linalg.norm(points_left, axis=1)[:, np.newaxis]
+        """Z = np.linalg.norm(points_left, axis=1)[:, np.newaxis]
         data = np.hstack((points2D_left, Z))  # N x 3 (x,y,distance)
         data = np.hstack((data,points_left))  # N x 6
         data = np.hstack((data,colors_left))  # N x 9 (x,y,distance, X,Y,Z,R,G,B)
@@ -3070,7 +3286,7 @@ class LiDAR_Camera_Calibration(object):
         for i in range(len(good_points)):
             cv2.circle(imgLeft, tuple(good_points[i]), 2, cols[i], -1)
 
-        Z = np.linalg.norm(points_right, axis=1)[:, np.newaxis]
+        '''Z = np.linalg.norm(points_right, axis=1)[:, np.newaxis]
         data = np.hstack((points2D_right, Z))  # N x 3 (x,y,distance)
         data = np.hstack((data,points_right))  # N x 6 (x,y,distance)
         data = np.hstack((data,colors_right))  # N x 9 (x,y,distance, X,Y,Z,R,G,B)
@@ -3078,26 +3294,26 @@ class LiDAR_Camera_Calibration(object):
         _good_points, _cols,_3Dpoint_, _3Dcolor_ = filterOcclusion(data=data)
         print('good_points->{}, cols->{},  _3Dpoint->{}'.format(np.shape(good_points), np.shape(cols), np.shape(_3Dpoint)))
         for i in range(len(_good_points)):
-            cv2.circle(imgRight, tuple(_good_points[i]), 2, _cols[i], -1)
+            cv2.circle(imgRight, tuple(_good_points[i]), 2, _cols[i], -1)'''
 
         cv2.imshow('imgLeft', cv2.resize(imgLeft,None, fx=.4,fy=.4))
         cv2.imshow('imgRight', cv2.resize(imgRight,None, fx=.4,fy=.4))
 
         cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        cv2.destroyAllWindows()"""
 
         #create a combined pointcloud
-        print('_3Dpoint->{},  _3Dpoint_->{}'.format(np.shape(_3Dpoint), np.shape(_3Dpoint_)))
-        print('_3Dcolor->{},  _3Dcolor_->{}'.format(np.shape(_3Dcolor), np.shape(_3Dcolor_)))
-        points = np.vstack((_3Dpoint, _3Dpoint_))
-        color = np.vstack((_3Dcolor, _3Dcolor_))
+        #print('_3Dpoint->{},  _3Dpoint_->{}'.format(np.shape(_3Dpoint), np.shape(_3Dpoint_)))
+        #print('_3Dcolor->{},  _3Dcolor_->{}'.format(np.shape(_3Dcolor), np.shape(_3Dcolor_)))
+        #points = np.vstack((_3Dpoint, _3Dpoint_))
+        #color = np.vstack((_3Dcolor, _3Dcolor_))
         #points = np.vstack((_3Dpoint_, _3Dpoint))
         #color = np.vstack((_3Dcolor_, _3Dcolor))
         #points = _3Dpoint #np.vstack((_3Dpoint, _3Dpoint_))
         #color = _3Dcolor #np.vstack((_3Dcolor, _3Dcolor_))
-        print('points->{}, color->{}'.format(np.shape(points), np.shape(color)))
-        self.write_ply('Lidar_cam_filtered.ply', points, color)
-        self.view()
+        #print('points->{}, color->{}'.format(np.shape(points), np.shape(color)))
+        #self.write_ply('Lidar_cam_filtered.ply', points, color)
+        #self.view()
 
         plt.show()
         print('----------------------------------------------------------------------------------------')
@@ -3379,13 +3595,12 @@ class LiDAR_Camera_Calibration(object):
             a2 += 3  # for testing the translation calculation
 
         c, R, t = umeyama(a1, a2)
-        print "R =\n", R
-        print "c =", c
-        print "t =\n", t
-        print
-        print "Check:  a1*cR + t = a2  is", np.allclose(a1.dot(c * R) + t, a2)
+        print ("R =\n", R)
+        print ("c =", c)
+        print ("t =\n", t)
+        print ("Check:  a1*cR + t = a2  is", np.allclose(a1.dot(c * R) + t, a2))
         err = ((a1.dot(c * R) + t - a2) ** 2).sum()
-        print "Residual error", err
+        print ("Residual error", err)
 
         return c, R, t
 
@@ -3815,6 +4030,7 @@ class LiDAR_Camera_Calibration(object):
         retval, rvec, tvec = cv2.solvePnP(objp, imgp, self.K, self.D, flags=cv2.SOLVEPNP_ITERATIVE)
         #success, rvec, tvec, inliers = cv2.solvePnPRansac(objp,imgp, self.K, self.D,flags=cv2.SOLVEPNP_ITERATIVE)
         rvec, tvec = cv2.solvePnPRefineLM(objp, imgp, self.K, self.D, rvec, tvec)
+        print('rvec is {}=============='.format(rvec))
         rvec, jac = cv2.Rodrigues(rvec)
         print("RMSE in pixel = %f" % self.rmse(objp, imgp, self.K_left, self.D_left, rvec, tvec))
         print("T = ")
@@ -3844,8 +4060,14 @@ class LiDAR_Camera_Calibration(object):
         for i in range(len(points2D_left)):
             cv2.circle(left_img, tuple(points2D_left[i]), 2, (0,255,0), -1)
 
+        q = Quaternion(matrix=rvec)
+        # tvec[2] = -.59
+        result_file = 'final_extrinsic.npz'
+        with open(result_file, 'w') as f:
+            f.write("%f %f %f %f %f %f %f" % (q.x, q.y, q.z, q.w, tvec[0], tvec[1], tvec[2]))
         cv2.imshow('left_img',cv2.resize(left_img,None,fx=.4,fy=.4))
         cv2.waitKey(0)
+
         #cv2.destroyAllWindows()
 
 
@@ -3900,6 +4122,9 @@ class LiDAR_Camera_Calibration(object):
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
+
+
+
         print('=============================================================')
         #test stereo calibration based on lidar extrinsics
         stere_tvec = np.array([-0.96, 0., 0.12])[:, np.newaxis]
@@ -3922,19 +4147,1107 @@ class LiDAR_Camera_Calibration(object):
         print('angles -> {}'.format(angles))
         print('tvec -> {}'.format(tvec))
 
+    def do_holy_Final_calibration2(self):
+        def hsv_to_rgb(h, s, v):
+            if s == 0.0:
+                return v, v, v
+
+            i = int(h * 6.0)
+            f = (h * 6.0) - i
+            p = v * (1.0 - s)
+            q = v * (1.0 - s * f)
+            t = v * (1.0 - s * (1.0 - f))
+            i = i % 6
+
+            if i == 0:
+                return v, t, p
+            if i == 1:
+                return q, v, p
+            if i == 2:
+                return p, v, t
+            if i == 3:
+                return p, q, v
+            if i == 4:
+                return t, p, v
+            if i == 5:
+                return v, p, q
+
+        def filterOcclusion(data):
+            print('data -> {}'.format(np.shape(data)))
+
+            # ---create a pandas Dataframe with X,Y,Z
+            print('Create a DataFrame')
+            df = pd.DataFrame(data, columns=['X','Y','Z','X3D','Y3X','Z3D','R','G','B'])
+
+            # ---sort it ascend by Z
+            print('Sort by Z')
+            df = df.sort_values(by=['Z'],kind='quicksort')
+
+            print('Data point after sorting------------------------------')
+
+            #---For each point create rectangle centered in current point
+            xGap,yGap = 20, 50
+            xOffset, yOffset = int(xGap / 2), int(yGap / 2)
+            def create_rectange(x,y,depth):
+                bl = [x-xOffset, y+yOffset] #bottom left
+                tr = [x+xOffset, y-yOffset] #top right
+                return [bl,tr,depth]
+
+            print('Adding rectangles')
+
+            #Rectangles = np.array([create_rectange(x=row['X'],y=row['Y'], depth = row['Z']) for index, row in df.iterrows()])
+            vfunc = np.vectorize(create_rectange)
+            Rectangles = vfunc(df['X'].values, df['Y'].values, df['Z'].values)
+            df['Rectangles'] = Rectangles
+            #Rectangles = np.asarray(Rectangles.tolist())
+            #print('Rectangles -> {}'.format(np.shape(Rectangles)))
+            #bl,tr = np.asarray(Rectangles[:,0].tolist()),np.asarray(Rectangles[:,0].tolist())
+            # 'bl0 -> {}'.format(np.shape(bl), np.shape(tr))
+            #df['bl0'] = bl[:,0]
+            #df['bl1'] = bl[:, 1]
+            #df['tr0'] = tr[:, 0]
+            #df['tr1'] = tr[:, 1]
+            # For each point, project it if it does not belong in prev 5 points
+            t = .5
+            def lies_inside(bl, tr, p, dist): #bottom_left, top_right, poin, distance_left, distance_right
+                if (p[0] > bl[0] and p[0] < tr[0] and p[1] < bl[1] and p[1] > tr[1]):
+                    if abs(p[-1]-dist)>t:
+                        return True
+                    else:
+                        return False
+                else:
+                    return False
+
+            def lies_inside_(bl0,bl1, tr0,tr1, p0,p1,p2, dist): #bottom_left, top_right, poin, distance_left, distance_right
+                if (p0 > bl0 and p0 < tr0 and p1 < bl1 and p1 > tr1):
+                    if abs(p2-dist)>t:
+                        return True
+                    else:
+                        return False
+                else:
+                    return False
+
+            lies_inside_ = np.vectorize(lies_inside_)
+            occluded = np.zeros_like(Z, dtype=bool)
+            projected = np.zeros_like(Z, dtype=bool)
+            df['occluded'] = occluded
+            df['projected'] = projected
+            idx = range(len(df))
+            df['idx'] = idx
+            df = df.set_index(['idx'])
+
+            # for each point check if the prev 5 points belongs to its rectangle -> if yes-> discard it
+            print('Compute neighbors')
+            from sklearn.neighbors import NearestNeighbors
+            X = np.array(df.iloc[:,0:2])
+            k=10
+            print('X -> {}'.format(np.shape(X)))
+            nbrs = NearestNeighbors(n_neighbors=k, algorithm='ball_tree').fit(X)
+            distances, indices = nbrs.kneighbors(X)
+            print('distances -> {}, indices->{}, df->{}'.format(np.shape(distances), np.shape(indices), np.shape(df)))
+            df['nbrs_indices'] = indices[:,1:].tolist()
+
+            print(df.head())
+            import time
+            start = time.time()
+            print('Start projection')
+
+            def soc_iter(i):
+                print(i)
+                # take the neighbours that are already projected and not occluded
+                nbrs = df.iloc[i, -1]
+                prev_points = df.iloc[nbrs]  # .query('projected == 1 & occluded == 0') #5.82813405991 s
+                condition = (prev_points.projected == True) & (prev_points.occluded == False)
+                prev_points = prev_points[condition]  # time = 156.481780052 s
+
+                # print('nbrs -> {}, prev_points->{}, condition1->{}'.format(np.shape(nbrs), np.shape(prev_points), np.shape(condition)))
+                if len(prev_points) > 0:
+                    p = np.array(df.iloc[i, 0:3])  # current_point
+                    # time = 156.481780052 s
+                    Rectangles = prev_points['Rectangles']
+                    occlusion = [lies_inside(bl=point[0], tr=point[1], p=p, dist=point[-1]) for point in Rectangles]
+                    # time = 156.481780052 s
+                    #occlusion = lies_inside_(prev_points['bl0'].values, prev_points['bl1'].values, prev_points['tr0'].values, prev_points['tr1'].values, p[0], p[1], p[-1], prev_points['Z'].values)
+                    if np.any(occlusion):
+                        # print('point {} is occluded'.format(p))
+                        df.loc[i, 'occluded'] = True
+                df.loc[i, 'projected'] = True
+            soc_iter_vect = np.vectorize(soc_iter)
+
+            N = len(df)
+
+            m = np.linspace(start=1, stop=N-1, num=N-1, dtype=int)
+            print('m->{}, N:{}'.format(np.shape(m),N))
+            soc_iter_vect(m) # uncomment this
+
+            '''for i in range(1,2): #len(df)
+                print i
+                # take the neighbours that are already projected and not occluded
+                nbrs = df.iloc[i, -1]
+                prev_points = df.iloc[nbrs]#.query('projected == 1 & occluded == 0') #5.82813405991 s
+                condition = (prev_points.projected == True) & (prev_points.occluded == False)
+                prev_points = prev_points[condition]  #time = 156.481780052 s
+
+                #print('nbrs -> {}, prev_points->{}, condition1->{}'.format(np.shape(nbrs), np.shape(prev_points), np.shape(condition)))
+                if len(prev_points)>0:
+                    p = np.array(df.iloc[i, 0:3]) #current_point
+                    # time = 303.82229900
+                    #occlusion = (p[0] > (prev_points.X-xOffset)) & (p[0] < (prev_points.X+xOffset)) & (p[1] < (prev_points.Y+yOffset)) & (p[1] > (prev_points.Y-yOffset)) & (abs(p[-1] - prev_points.Z) > .3)
+                    #time = 156.481780052 s
+                    Rectangles = prev_points['Rectangles']
+                    occlusion = np.array([lies_inside(bl=point[0], tr=point[1], p=p, dist=point[-1]) for point in Rectangles])
+                    if np.any(occlusion):
+                        #print('point {} is occluded'.format(p))
+                        df.loc[i,'occluded'] = True
+                df.loc[i, 'projected'] = True'''
+            #soc_iter_vect(1)
+
+            end = time.time()
+            print('the publish took {}'.format(end - start))
+
+            print(df.head())
+            Points = np.array(df[df['occluded']==False]).squeeze()
+            good_points = Points[:,0:2].astype('int')
+            distance = Points[:,2]
+            _3Dpoint = Points[:,3:6]
+            _3Dcolor = Points[:, 6:9]
+
+            MIN_DISTANCE, MAX_DISTANCE = np.min(distance), np.max(distance)
+            colours = (distance - MIN_DISTANCE) / (MAX_DISTANCE - MIN_DISTANCE)
+            colours = np.asarray([np.asarray(hsv_to_rgb( c, np.sqrt(1), 1.0)) for c in colours])
+
+            cols = 255 * colours
+
+            return good_points, cols,_3Dpoint, _3Dcolor
+
+
+        #get data
+        #use only the center
+        #self.Lidar_3D = np.array(self.Lidar_3D)[:,-1,:]
+        #self.Image_2D = np.array(self.Image_2D)[:,-1, :]
+
+        #self.Lidar_3D = np.array(self.Lidar_3D)[:, :4, :]
+        #self.Image_2D = np.array(self.Image_2D)[:, :4, :]
+
+        self.Lidar_3D = np.array(self.Lidar_3D)[:, :, :]
+        self.Image_2D = np.array(self.Image_2D)[:, :, :]
+
+        print('self.Lidar_3D ->{}, self.Image_2D->{}'.format(np.shape(self.Lidar_3D), np.shape(self.Image_2D)))
+
+        points3D_Lidar = np.array(self.Lidar_3D, dtype=np.float32).reshape(-1, 3)
+        points2DLeft = np.array(self.Image_2D, dtype=np.float32).reshape(-1, 2)
+        print('points3D_Lidar->{}, points2DLeft->{}'.format(np.shape(points3D_Lidar), np.shape(points2DLeft)))
+
+
+        #calibrate Lidar-> left camera
+        print('Calibrate LiDAR->Left camera===============================================================')
+        imgp = np.array([points2DLeft], dtype=np.float32).squeeze()
+        objp = np.array([points3D_Lidar], dtype=np.float32).squeeze()
+        print('imgp->{},objp->{}'.format(np.shape(imgp), np.shape(objp)))
+        #retval, rvec, tvec = cv2.solvePnP(objp, imgp, self.K, self.D, flags=cv2.SOLVEPNP_ITERATIVE)
+        retval, rvec, tvec, inliers = cv2.solvePnPRansac(objp,imgp, self.K, self.D,flags=cv2.SOLVEPNP_ITERATIVE)
+        #rvec, tvec = cv2.solvePnPRefineLM(objp, imgp, self.K, self.D, rvec, tvec)
+        print('rvec is {}=============='.format(rvec))
+        print("T = ")
+        print(tvec)
+        tvec = np.array([[0.73698884], [1.3237537], [-0.74695895]])
+        #tvec = np.array([[0.673698884], [1.3237537], [-0.4]])
+
+        rvec, jac = cv2.Rodrigues(rvec)
+        q = Quaternion(matrix=rvec).transformation_matrix
+
+        #test calibration LiDAR->Left camera
+        left_src = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/chess/left/left_0.png'
+        left_src = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/charuco/left/left_4.png'
+        i = 11
+        left_src = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/cool/left_{}.png'.format(i)
+
+        left_src = '/home/eugeniu/cool/left_100.png'
+        left_img = cv2.imread(left_src)
+
+        cloud_file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/chess/cloud_0.npy'
+        cloud_file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/charuco/cloud_4.npy'
+        cloud_file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/cool/cloud_{}.npy'.format(i)
+        cloud_file = '/home/eugeniu/cool/cloud_100.npy'
+        _3DPoints = np.array(np.load(cloud_file, mmap_mode='r'), dtype=np.float32)[:, :3]
+
+        _3DPoints = np.dot(_3DPoints, Rot_matrix)
+        print('_3DPoints - > {}'.format(np.shape(_3DPoints)))
+        distance = np.linalg.norm(_3DPoints, axis=1)[:, np.newaxis]
+        MIN_DISTANCE, MAX_DISTANCE = np.min(distance), np.max(distance)
+        colours = (distance - MIN_DISTANCE) / (MAX_DISTANCE - MIN_DISTANCE)
+        colours = np.asarray([hsv_to_rgb(c[0], np.sqrt(1), 1.0) for c in colours])
+
+        cols = 255 * colours
+        print('distance - > {}, cols ->{}'.format(np.shape(distance), np.shape(cols)))
+        #Left image--------------------------------------------------------------------------------------------
+        objPoints_left = _3DPoints.copy()
+        Z = self.get_z(q, objPoints_left, self.K_left)
+        objPoints_left = objPoints_left[Z > 0]
+
+        points2D_left, _ = cv2.projectPoints(objPoints_left, rvec, tvec, self.K_right, self.D_right)
+        points2D_left = np.squeeze(points2D_left)
+        print('objPoints_left -> {},  points2D_left -> {},  '.format(np.shape(objPoints_left), np.shape(points2D_left)))
+        inrange_left = np.where((points2D_left[:, 0] > 0) & (points2D_left[:, 1] > 0) &
+                                (points2D_left[:, 0] < left_img.shape[1] - 1) & (points2D_left[:, 1] < left_img.shape[0] - 1))
+        points2D_left = points2D_left[inrange_left[0]].round().astype('int')
+        colours = cols[inrange_left[0]]
+        objPoints_left = objPoints_left[inrange_left[0]]
+        for i in range(len(points2D_left)):
+            cv2.circle(left_img, tuple(points2D_left[i]), 2, colours[i], -1)
+
+        '''Z = distance[inrange_left[0]]
+        data = np.hstack((points2D_left, Z))  # N x 3 (x,y,distance)
+        data = np.hstack((data,objPoints_left))  # N x 6
+        colorImageLeft = cv2.imread(left_src)
+        colors_left = colorImageLeft[points2D_left[:, 1], points2D_left[:, 0], :]
+        data = np.hstack((data,colors_left))  # N x 9 (x,y,distance, X,Y,Z,R,G,B)
+
+        good_points, cols,_3Dpoint, _3Dcolor = filterOcclusion(data = data)
+        print('good_points->{}, cols->{}, _3Dpoint->{}, _3Dcolor->{}'.format(np.shape(good_points), np.shape(cols), np.shape(_3Dpoint), np.shape(_3Dcolor)))
+        for i in range(len(good_points)):
+            cv2.circle(left_img, tuple(good_points[i]), 2, cols[i], -1)'''
+
+        cv2.imshow('left_img',cv2.resize(left_img,None,fx=.4,fy=.4))
+        cv2.waitKey(0)
+
+        #points = _3Dpoint #np.vstack((_3Dpoint, _3Dpoint_))
+        #color = _3Dcolor #np.vstack((_3Dcolor, _3Dcolor_))
+        #print('points->{}, color->{}'.format(np.shape(points), np.shape(color)))
+        #self.write_ply('Lidar_cam_filtered_compareCamera.ply', points, color)
+        #self.view()
+
+        cv2.destroyAllWindows()
+
+    def filter_for_video_(self):
+        def hsv_to_rgb(h, s, v):
+            if s == 0.0:
+                return v, v, v
+
+            i = int(h * 6.0)
+            f = (h * 6.0) - i
+            p = v * (1.0 - s)
+            q = v * (1.0 - s * f)
+            t = v * (1.0 - s * (1.0 - f))
+            i = i % 6
+
+            if i == 0:
+                return v, t, p
+            if i == 1:
+                return q, v, p
+            if i == 2:
+                return p, v, t
+            if i == 3:
+                return p, q, v
+            if i == 4:
+                return t, p, v
+            if i == 5:
+                return v, p, q
+
+        import time
+        from sklearn.neighbors import NearestNeighbors
+        #from numba import jit
+
+        #init 191.438015938 s
+
+
+        def filterOcclusion(data):
+
+            start = time.time()
+            print('data -> {}'.format(np.shape(data)))
+
+            # ---create a pandas Dataframe with X,Y,Z
+            print('Create a DataFrame')
+            df = pd.DataFrame(data, columns=['X','Y','Z','X3D','Y3X','Z3D','R','G','B'])
+
+            # ---sort it ascend by Z
+            print('Sort by Z')
+            df = df.sort_values(by=['Z'],kind='quicksort')
+
+            print('Data point after sorting------------------------------')
+
+            #---For each point create rectangle centered in current point
+            xGap,yGap = 70, 150
+            xGap, yGap = 100, 200
+            xOffset, yOffset = int(xGap / 2), int(yGap / 2)
+            def create_rectange(x,y,depth):
+                bl = [x-xOffset, y+yOffset] #bottom left
+                tr = [x+xOffset, y-yOffset] #top right
+                return [bl,tr,depth]
+
+            print('Adding rectangles')
+
+            #Rectangles = np.array([create_rectange(x=row['X'],y=row['Y'], depth = row['Z']) for index, row in df.iterrows()])
+            vfunc = np.vectorize(create_rectange)
+            Rectangles = vfunc(df['X'].values, df['Y'].values, df['Z'].values)
+            df['Rectangles'] = Rectangles
+            t = .5
+            def lies_inside(bl, tr, p, dist): #bottom_left, top_right, poin, distance_left, distance_right
+                if (p[0] > bl[0] and p[0] < tr[0] and p[1] < bl[1] and p[1] > tr[1]):
+                    if abs(p[-1]-dist)>t:
+                        return True
+                    else:
+                        return False
+                else:
+                    return False
+
+            occluded = np.zeros_like(Z, dtype=bool)
+            projected = np.zeros_like(Z, dtype=bool)
+            df['occluded'] = occluded
+            df['projected'] = projected
+            idx = range(len(df))
+            df['idx'] = idx
+            df = df.set_index(['idx'])
+
+            # for each point check if the prev 5 points belongs to its rectangle -> if yes-> discard it
+            print('Compute neighbors')
+
+            X = np.array(df.iloc[:,0:2])
+            k=15
+
+            print('X -> {}'.format(np.shape(X)))
+            nbrs = NearestNeighbors(n_neighbors=k, algorithm='ball_tree').fit(X)
+            distances, indices = nbrs.kneighbors(X)
+            print('distances -> {}, indices->{}, df->{}'.format(np.shape(distances), np.shape(indices), np.shape(df)))
+            df['nbrs_indices'] = indices[:,1:].tolist()
+
+            print(df.head())
+
+            print('Start projection')
+
+            #@jit(nopython=True)
+            def soc_iter(i):
+                #print(i)
+                # take the neighbours that are already projected and not occluded
+                nbrs = df.iloc[i, -1]
+                prev_points = df.iloc[nbrs]  # .query('projected == 1 & occluded == 0') #5.82813405991 s
+                condition = (prev_points.projected == True) & (prev_points.occluded == False)
+                prev_points = prev_points[condition]  # time = 156.481780052 s
+
+                # print('nbrs -> {}, prev_points->{}, condition1->{}'.format(np.shape(nbrs), np.shape(prev_points), np.shape(condition)))
+                if len(prev_points) > 0:
+                    p = np.array(df.iloc[i, 0:3])  # current_point
+                    # time = 156.481780052 s
+                    Rectangles = prev_points['Rectangles']
+                    occlusion = [lies_inside(bl=point[0], tr=point[1], p=p, dist=point[-1]) for point in Rectangles]
+                    # time = 156.481780052 s
+                    #occlusion = lies_inside_(prev_points['bl0'].values, prev_points['bl1'].values, prev_points['tr0'].values, prev_points['tr1'].values, p[0], p[1], p[-1], prev_points['Z'].values)
+                    if np.any(occlusion):
+                        # print('point {} is occluded'.format(p))
+                        df.loc[i, 'occluded'] = True
+                df.loc[i, 'projected'] = True
+
+            #soc_iter_vect = np.vectorize(soc_iter)
+
+            N = len(df)
+
+            m = np.linspace(start=1, stop=N-1, num=N-1, dtype=int)
+            print('m->{}, N:{}'.format(np.shape(m),N))
+            #soc_iter_vect(m) # uncomment this
+            for i in m:
+                soc_iter(i)
+
+
+            print(df.head())
+            Points = np.array(df[df['occluded']==False]).squeeze()
+            good_points = Points[:,0:2].astype('int')
+            distance = Points[:,2]
+            _3Dpoint = Points[:,3:6]
+            _3Dcolor = Points[:, 6:9]
+
+            MIN_DISTANCE, MAX_DISTANCE = np.min(distance), np.max(distance)
+            MIN_DISTANCE, MAX_DISTANCE = 1.5, 60
+            colours = (distance - MIN_DISTANCE) / (MAX_DISTANCE - MIN_DISTANCE)
+            colours = np.asarray([np.asarray(hsv_to_rgb( c, np.sqrt(1), 1.0)) for c in colours])
+
+            cols = 255 * colours
+
+            end = time.time()
+            print('the publish took {}'.format(end - start))
+            return good_points, cols,_3Dpoint, _3Dcolor
+
+        def readCalibrationExtrinsic():
+            self.chess = True
+            calib_file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/solvePnP_extrinsics{}.npz'.format(
+                'chess' if self.chess else 'charuco')
+            #calib_file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/combined_extrinsics{}.npz'
+            with open(calib_file, 'r') as f:
+                data = f.read().split()
+                #print('data:{}'.format(data))
+                qx = float(data[0])
+                qy = float(data[1])
+                qz = float(data[2])
+                qw = float(data[3])
+                tx = float(data[4])
+                ty = float(data[5])
+                tz = float(data[6])
+
+            q = Quaternion(qw, qx, qy, qz).transformation_matrix
+            q[0, 3],q[1, 3],q[2, 3] = tx,ty,tz
+            tvec = q[:3, 3]
+            rot_mat = q[:3, :3]
+            #rvec, _ = cv2.Rodrigues(rot_mat)
+            rvec = rot_mat
+            #tvec = np.array([ 0.673738, -0.428458, -0.650393])
+            #tvec = np.array([0.69, -0.428458, -0.650393])
+            #tvec = np.array([0.71, -0.428458, -0.650393])
+            #rvec = np.array([np.deg2rad(90.06), np.deg2rad(-8.5), np.deg2rad(0.71)])
+            rvec = np.array([np.deg2rad(90.3), np.deg2rad(-8.5), np.deg2rad(0.71)])
+            rvec = eulerAnglesToRotationMatrix2(rvec)
+
+            print('tvec -> {}'.format(tvec))
+
+            return rvec, tvec, q
+
+        rvec, tvec, q = readCalibrationExtrinsic()
+
+        files = glob.glob('/home/eugeniu/myFolder/*png')
+        currentFile = -1# 27
+
+        for currentFile_, fil in enumerate(files):
+            currentFile += 1
+            print('current image {}'.format(currentFile))
+            img_path = '/home/eugeniu/myFolder/left_{}.png'.format(currentFile)
+            pcl_path = '/home/eugeniu/myFolder/cloud_{}.npy'.format(currentFile)
+            img = cv2.imread(img_path)
+
+            _3DPoints = np.array(np.load(pcl_path, mmap_mode='r'), dtype=np.float32)[:, :3]
+            objPoints_left = _3DPoints.copy()
+            Z = self.get_z(q, objPoints_left, self.K)
+            objPoints_left = objPoints_left[Z > 0]
+            print('objPoints_left:{}'.format(np.shape(objPoints_left)))
+            points2D_left, _ = cv2.projectPoints(objPoints_left, rvec, tvec, self.K, self.D)
+            points2D_left = np.squeeze(points2D_left)
+            print('objPoints_left -> {},  points2D_left -> {},  '.format(np.shape(objPoints_left),
+                                                                         np.shape(points2D_left)))
+
+            inrange_left = np.where((points2D_left[:, 0] > 0) & (points2D_left[:, 1] > 0) &
+                                    (points2D_left[:, 0] < img.shape[1] - 1) & (
+                                                points2D_left[:, 1] < img.shape[0] - 1))
+            print('inrange_left : {}'.format(np.shape(inrange_left)))
+            points2D_left = points2D_left[inrange_left[0]].round().astype('int')
+            print('points2D_left:{},  '.format(np.shape(points2D_left)))
+            #for i, point in enumerate(points2D_left):
+            #    cv2.circle(img, (point[0],point[1]), 2, (0,255,0), -1)
+
+            #cv2.imshow('img',cv2.resize(img,None,fx=.4,fy=.4))
+            #cv2.waitKey(0)
+
+            # columns=["X", "Y", "Z","intens","ring"]
+            colors = np.array(np.load(pcl_path, mmap_mode='r'))[:, 4]  #
+            # Color map for the points
+            colors = colors[inrange_left[0]]
+            cmap = matplotlib.cm.get_cmap('hsv')
+            colors = cmap(colors / np.max(colors))
+            print('colors -> {},  min:{}, max:{}'.format(np.shape(colors), np.min(colors), np.max(colors)))
+
+            colorImageLeft = img.copy()
+            points_left = objPoints_left[inrange_left[0]]
+
+            print('points_left -> {},  colorImageLeft->{}'.format(np.shape(points_left), np.shape(colorImageLeft)))
+            colors_left = colorImageLeft[points2D_left[:, 1], points2D_left[:, 0], :]
+
+            print('colors_left -> {}'.format(np.shape(colors_left)))
+
+            Z = np.linalg.norm(points_left, axis=1)[:, np.newaxis]
+            data = np.hstack((points2D_left, Z))  # N x 3 (x,y,distance)
+            data = np.hstack((data, points_left))  # N x 6
+            data = np.hstack((data, colors_left))  # N x 9 (x,y,distance, X,Y,Z,R,G,B)
+
+            good_points, cols, _3Dpoint, _3Dcolor = filterOcclusion(data=data)
+            print('good_points->{}, cols->{}, _3Dpoint->{}, _3Dcolor->{}'.format(
+                np.shape(good_points), np.shape(cols), np.shape(_3Dpoint), np.shape(_3Dcolor)))
+            for i in range(len(good_points)):
+                cv2.circle(img, tuple(good_points[i]), 2, cols[i], -1)
+
+            cv2.imshow('img ',img)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+            #cv2.imwrite('/home/eugeniu/myFolder/img_synchro_{}.png'.format(currentFile), img)
+            #with open('/home/eugeniu/myFolder/good_points_{}.npy'.format(currentFile), 'wb') as f:
+            #    np.save(f, good_points)
+            #with open('/home/eugeniu/myFolder/cols_{}.npy'.format(currentFile), 'wb') as f:
+            #    np.save(f, cols)
+            #with open('/home/eugeniu/myFolder/_3Dpoint_{}.npy'.format(currentFile), 'wb') as f:
+            #    np.save(f, _3Dpoint)
+            #with open('/home/eugeniu/myFolder/_3Dcolor_{}.npy'.format(currentFile), 'wb') as f:
+            #    np.save(f, _3Dcolor)
+            break
+
+    def filter_for_video(self):
+        def hsv_to_rgb(h, s, v):
+            if s == 0.0:
+                return v, v, v
+
+            i = int(h * 6.0)
+            f = (h * 6.0) - i
+            p = v * (1.0 - s)
+            q = v * (1.0 - s * f)
+            t = v * (1.0 - s * (1.0 - f))
+            i = i % 6
+
+            if i == 0:
+                return v, t, p
+            if i == 1:
+                return q, v, p
+            if i == 2:
+                return p, v, t
+            if i == 3:
+                return p, q, v
+            if i == 4:
+                return t, p, v
+            if i == 5:
+                return v, p, q
+
+        import time
+        from sklearn.neighbors import NearestNeighbors
+        #from numba import jit
+
+        def filterOcclusion(data):
+
+            print('data -> {}'.format(np.shape(data)))
+            start = time.time()
+            # ---create a pandas Dataframe with X,Y,Z
+            print('Create a DataFrame')
+            df = pd.DataFrame(data, columns=['X','Y','Z','X3D','Y3X','Z3D','R','G','B'])
+
+            # ---sort it ascend by Z
+            print('Sort by Z')
+            df = df.sort_values(by=['Z'],kind='quicksort')
+
+            print('Data point after sorting------------------------------')
+
+            #---For each point create rectangle centered in current point
+            xGap,yGap = 70, 150
+            xGap, yGap = 100, 200
+            xOffset, yOffset = int(xGap / 2), int(yGap / 2)
+            def create_rectange(x,y,depth):
+                bl = [x-xOffset, y+yOffset] #bottom left
+                tr = [x+xOffset, y-yOffset] #top right
+                return [bl,tr,depth]
+
+            print('Adding rectangles')
+
+            #Rectangles = np.array([create_rectange(x=row['X'],y=row['Y'], depth = row['Z']) for index, row in df.iterrows()])
+            vfunc = np.vectorize(create_rectange)
+            Rectangles = vfunc(df['X'].values, df['Y'].values, df['Z'].values)
+            df['Rectangles'] = Rectangles
+            t = .5
+
+            def lies_inside(bl, tr, p, dist): #bottom_left, top_right, poin, distance_left, distance_right
+                if (p[0] > bl[0] and p[0] < tr[0] and p[1] < bl[1] and p[1] > tr[1]):
+                    if abs(p[-1]-dist)>t:
+                        return True
+
+                return False
+
+            occluded = np.zeros_like(Z, dtype=bool)
+            projected = np.zeros_like(Z, dtype=bool)
+            df['occluded'] = occluded
+            df['projected'] = projected
+            idx = range(len(df))
+            df['idx'] = idx
+            df = df.set_index(['idx'])
+
+            # for each point check if the prev 5 points belongs to its rectangle -> if yes-> discard it
+            print('Compute neighbors')
+
+            X = np.array(df.iloc[:,0:2])
+            k=15
+
+            print('X -> {}'.format(np.shape(X)))
+            nbrs = NearestNeighbors(n_neighbors=k, algorithm='ball_tree').fit(X)
+            distances, indices = nbrs.kneighbors(X)
+            print('distances -> {}, indices->{}, df->{}'.format(np.shape(distances), np.shape(indices), np.shape(df)))
+            df['nbrs_indices'] = indices[:,1:].tolist()
+
+            #print(df.head())
+
+            print('Start projection')
+            #print(df.columns)
+            #from numba import njit
+            #
+            #list_idx = np.array(['X', 'Y', 'Z', 'X3D', 'Y3X', 'Z3D', 'R', 'G', 'B', 'Rectangles','occluded', 'projected', 'nbrs_indices'])
+            df_numpy = np.array(df.to_numpy()).squeeze() #(45783, 13)
+
+            print('df_numpy -> {}, df -> {},  df_numpy type is {}'.format(np.shape(df_numpy), np.shape(df), type(df_numpy)))
+            Neighbours_array = df_numpy[:,-1]
+            projected_array = df_numpy[:,11]
+            occluded_array = df_numpy[:,10]
+            XYZ_array = df_numpy[:,0:3]
+            Rectangles_array = df_numpy[:,9]
+
+            #only with arrays took 2.87 s
+            def soc_iter(m, Neighbours_array, projected_array, occluded_array, XYZ_array, Rectangles_array):
+                for i in m:
+                    nbrs = Neighbours_array[i]
+                    Rectangles = Rectangles_array[nbrs]
+                    condition = (projected_array[nbrs] == True) & (occluded_array[nbrs] == False)
+                    Rectangles = Rectangles[condition]
+                    # print('Rectangles -> {}'.format(np.shape(Rectangles)))
+                    if len(Rectangles) > 0:
+                        p = XYZ_array[i]
+                        occlusion = []
+                        for point in Rectangles:
+                            bl, tr = point[0], point[1]
+                            dist = point[-1]
+                            rv = False
+                            if (p[0] > bl[0] and p[0] < tr[0] and p[1] < bl[1] and p[1] > tr[1]):
+                                if abs(p[-1] - dist) > 0.5:
+                                    rv = True
+                            occlusion.append(rv)
+                        if np.any(occlusion):
+                            occluded_array[i] = True
+
+                    projected_array[i] = True
+
+            #soc_iter_vect = np.vectorize(soc_iter)
+            N = len(df)
+
+            m = np.linspace(start=1, stop=N-1, num=N-1, dtype=int)
+            print('m->{}, N:{}'.format(np.shape(m),N))
+            #soc_iter_vect(m) # uncomment this
+            #for i in m:
+                #soc_iter(i,Neighbours_array, projected_array, occluded_array, XYZ_array, Rectangles_array)
+
+            soc_iter(m, Neighbours_array, projected_array, occluded_array, XYZ_array, Rectangles_array)
+            #print(df.head())
+            #Points = np.array(df[df['occluded']==False]).squeeze()
+            #print('Pandas Points -> {}'.format(np.shape(Points)))
+            #Points = np.array(df_numpy[df_numpy[:,10] == False]).squeeze()
+            Points = np.array(df_numpy[occluded_array == False]).squeeze()
+            print('Numpy Points -> {}'.format(np.shape(Points)))
+
+            good_points = Points[:,0:2].astype('int')
+            distance = Points[:,2]
+            _3Dpoint = Points[:,3:6]
+            _3Dcolor = Points[:, 6:9]
+
+            #MIN_DISTANCE, MAX_DISTANCE = np.min(distance), np.max(distance)
+            MIN_DISTANCE, MAX_DISTANCE = 1.5, 60
+            colours = (distance - MIN_DISTANCE) / (MAX_DISTANCE - MIN_DISTANCE)
+            colours = np.asarray([np.asarray(hsv_to_rgb( c, np.sqrt(1), 1.0)) for c in colours])
+
+            cols = 255 * colours
+
+            end = time.time()
+            print('the publish took {}'.format(end - start))
+            return good_points, cols,_3Dpoint, _3Dcolor
+
+
+        # init 191.438015938 s
+        # 3.7 s only with numpy took
+        def filterOcclusion_(data):
+
+            start = time.time()
+            print('data -> {}'.format(np.shape(data)))
+
+            # ---create a pandas Dataframe with X,Y,Z
+            print('Create a DataFrame')
+            df = pd.DataFrame(data, columns=['X','Y','Z','X3D','Y3X','Z3D','R','G','B'])
+
+            # ---sort it ascend by Z
+            print('Sort by Z')
+            df = df.sort_values(by=['Z'],kind='quicksort')
+
+            print('Data point after sorting------------------------------')
+
+            #---For each point create rectangle centered in current point
+            xGap,yGap = 70, 150
+            xGap, yGap = 100, 200
+            xOffset, yOffset = int(xGap / 2), int(yGap / 2)
+            def create_rectange(x,y,depth):
+                bl = [x-xOffset, y+yOffset] #bottom left
+                tr = [x+xOffset, y-yOffset] #top right
+                return [bl,tr,depth]
+
+            print('Adding rectangles')
+
+            #Rectangles = np.array([create_rectange(x=row['X'],y=row['Y'], depth = row['Z']) for index, row in df.iterrows()])
+            vfunc = np.vectorize(create_rectange)
+            Rectangles = vfunc(df['X'].values, df['Y'].values, df['Z'].values)
+            df['Rectangles'] = Rectangles
+            t = .5
+
+            def lies_inside(bl, tr, p, dist): #bottom_left, top_right, poin, distance_left, distance_right
+                if (p[0] > bl[0] and p[0] < tr[0] and p[1] < bl[1] and p[1] > tr[1]):
+                    if abs(p[-1]-dist)>t:
+                        return True
+
+                return False
+
+            occluded = np.zeros_like(Z, dtype=bool)
+            projected = np.zeros_like(Z, dtype=bool)
+            df['occluded'] = occluded
+            df['projected'] = projected
+            idx = range(len(df))
+            df['idx'] = idx
+            df = df.set_index(['idx'])
+
+            # for each point check if the prev 5 points belongs to its rectangle -> if yes-> discard it
+            print('Compute neighbors')
+
+            X = np.array(df.iloc[:,0:2])
+            k=15
+
+            print('X -> {}'.format(np.shape(X)))
+            nbrs = NearestNeighbors(n_neighbors=k, algorithm='ball_tree').fit(X)
+            distances, indices = nbrs.kneighbors(X)
+            print('distances -> {}, indices->{}, df->{}'.format(np.shape(distances), np.shape(indices), np.shape(df)))
+            df['nbrs_indices'] = indices[:,1:].tolist()
+
+            print(df.head())
+
+            print('Start projection')
+            print(df.columns)
+            from numba import njit
+            #'X', 'Y', 'Z', 'X3D', 'Y3X', 'Z3D', 'R', 'G', 'B', 'Rectangles','occluded', 'projected', 'nbrs_indices'
+
+            df_numpy = np.array(df.to_numpy()).squeeze() #(45783, 13)
+            print('df_numpy -> {}, df -> {},  df_numpy type is {}'.format(np.shape(df_numpy), np.shape(df), type(df_numpy)))
+            nbrs_ = df_numpy[0, -1]
+            #@jit(nopython=True)
+            def soc_iter(i, df_numpy, nbrs_=nbrs_):
+                #print(i)
+                # take the neighbours that are already projected and not occluded
+                #nbrs = df.iloc[i, -1]
+                nbrs = df_numpy[i,-1]
+                #prev_points = df.iloc[nbrs]  # .query('projected == 1 & occluded == 0') #5.82813405991 s
+                prev_points = df_numpy[nbrs]
+
+                #condition = (prev_points.projected == True) & (prev_points.occluded == False)
+                condition = (prev_points[:,11] == True) & ( prev_points[:,10] == False)
+                #print(condition)
+                #print('prev_points -> {}'.format(np.shape(prev_points)))
+                prev_points = prev_points[condition]  # time = 156.481780052 s
+                #print('prev_points -> {}'.format(np.shape(prev_points)))
+                # print('nbrs -> {}, prev_points->{}, condition1->{}'.format(np.shape(nbrs), np.shape(prev_points), np.shape(condition)))
+                if len(prev_points) > 0:
+                    #p = np.array(df.iloc[i, 0:3])  # current_point
+                    p = df_numpy[i, 0:3]
+                    # time = 156.481780052 s
+                    #Rectangles = prev_points['Rectangles']
+                    Rectangles = prev_points[:,9]
+                    #print('Rectangles -> {}'.format(np.shape(Rectangles)))
+                    #occlusion = [lies_inside(bl=point[0], tr=point[1], p=p, dist=point[-1]) for point in Rectangles]
+                    occlusion = []
+                    for point in Rectangles:
+                        bl = point[0]
+                        tr = point[1]
+                        p = p
+                        dist = point[-1]
+                        rv = False
+                        if (p[0] > bl[0] and p[0] < tr[0] and p[1] < bl[1] and p[1] > tr[1]):
+                            if abs(p[-1] - dist) > t:
+                                rv = True
+                        occlusion.append(rv)
+
+                    # time = 156.481780052 s
+                    #occlusion = lies_inside_(prev_points['bl0'].values, prev_points['bl1'].values, prev_points['tr0'].values, prev_points['tr1'].values, p[0], p[1], p[-1], prev_points['Z'].values)
+                    if np.any(occlusion):
+                        #print('point {} is occluded'.format(p))
+                        #df.loc[i, 'occluded'] = True
+                        df_numpy[i,10] = True
+                #df.loc[i, 'projected'] = True
+                df_numpy[i,11] = True
+
+            #soc_iter_vect = np.vectorize(soc_iter)
+
+            N = len(df)
+
+            m = np.linspace(start=1, stop=N-1, num=N-1, dtype=int)
+            print('m->{}, N:{}'.format(np.shape(m),N))
+            #soc_iter_vect(m) # uncomment this
+            for i in m:
+                soc_iter(i,df_numpy)
+
+            print(df.head())
+            Points = np.array(df[df['occluded']==False]).squeeze()
+            print('Pandas Points -> {}'.format(np.shape(Points)))
+            Points = np.array(df_numpy[df_numpy[:,10] == False]).squeeze()
+            print('Numpy Points -> {}'.format(np.shape(Points)))
+
+            good_points = Points[:,0:2].astype('int')
+            distance = Points[:,2]
+            _3Dpoint = Points[:,3:6]
+            _3Dcolor = Points[:, 6:9]
+
+            MIN_DISTANCE, MAX_DISTANCE = np.min(distance), np.max(distance)
+            MIN_DISTANCE, MAX_DISTANCE = 1.5, 60
+            colours = (distance - MIN_DISTANCE) / (MAX_DISTANCE - MIN_DISTANCE)
+            colours = np.asarray([np.asarray(hsv_to_rgb( c, np.sqrt(1), 1.0)) for c in colours])
+
+            cols = 255 * colours
+
+            end = time.time()
+            print('the publish took {}'.format(end - start))
+            return good_points, cols,_3Dpoint, _3Dcolor
+
+        def readCalibrationExtrinsic():
+            self.chess = True
+            calib_file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/solvePnP_extrinsics{}.npz'.format(
+                'chess' if self.chess else 'charuco')
+            #calib_file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/combined_extrinsics{}.npz'
+            with open(calib_file, 'r') as f:
+                data = f.read().split()
+                #print('data:{}'.format(data))
+                qx = float(data[0])
+                qy = float(data[1])
+                qz = float(data[2])
+                qw = float(data[3])
+                tx = float(data[4])
+                ty = float(data[5])
+                tz = float(data[6])
+
+            q = Quaternion(qw, qx, qy, qz).transformation_matrix
+            q[0, 3],q[1, 3],q[2, 3] = tx,ty,tz
+            tvec = q[:3, 3]
+            rot_mat = q[:3, :3]
+            #rvec, _ = cv2.Rodrigues(rot_mat)
+            rvec = rot_mat
+            #tvec = np.array([ 0.673738, -0.428458, -0.650393])
+            #tvec = np.array([0.69, -0.428458, -0.650393])
+            #tvec = np.array([0.71, -0.428458, -0.650393])
+            #rvec = np.array([np.deg2rad(90.06), np.deg2rad(-8.5), np.deg2rad(0.71)])
+            rvec = np.array([np.deg2rad(90.3), np.deg2rad(-8.5), np.deg2rad(0.71)])
+            rvec = eulerAnglesToRotationMatrix2(rvec)
+
+            print('tvec -> {}'.format(tvec))
+
+            return rvec, tvec, q
+
+        rvec, tvec, q = readCalibrationExtrinsic()
+
+        files = glob.glob('/home/eugeniu/myFolder/*png')
+        currentFile = -1# 27
+
+        for currentFile_, fil in enumerate(files):
+            currentFile += 1
+            print('current image {}'.format(currentFile))
+            img_path = '/home/eugeniu/myFolder/left_{}.png'.format(currentFile)
+            pcl_path = '/home/eugeniu/myFolder/cloud_{}.npy'.format(currentFile)
+            img = cv2.imread(img_path)
+
+            _3DPoints = np.array(np.load(pcl_path, mmap_mode='r'), dtype=np.float32)[:, :3]
+            objPoints_left = _3DPoints.copy()
+            Z = self.get_z(q, objPoints_left, self.K)
+            objPoints_left = objPoints_left[Z > 0]
+            print('objPoints_left:{}'.format(np.shape(objPoints_left)))
+            points2D_left, _ = cv2.projectPoints(objPoints_left, rvec, tvec, self.K, self.D)
+            points2D_left = np.squeeze(points2D_left)
+            print('objPoints_left -> {},  points2D_left -> {},  '.format(np.shape(objPoints_left),
+                                                                         np.shape(points2D_left)))
+
+            inrange_left = np.where((points2D_left[:, 0] > 0) & (points2D_left[:, 1] > 0) &
+                                    (points2D_left[:, 0] < img.shape[1] - 1) & (
+                                                points2D_left[:, 1] < img.shape[0] - 1))
+            print('inrange_left : {}'.format(np.shape(inrange_left)))
+            points2D_left = points2D_left[inrange_left[0]].round().astype('int')
+            print('points2D_left:{},  '.format(np.shape(points2D_left)))
+            #for i, point in enumerate(points2D_left):
+            #    cv2.circle(img, (point[0],point[1]), 2, (0,255,0), -1)
+
+            #cv2.imshow('img',cv2.resize(img,None,fx=.4,fy=.4))
+            #cv2.waitKey(0)
+
+            # columns=["X", "Y", "Z","intens","ring"]
+            colors = np.array(np.load(pcl_path, mmap_mode='r'))[:, 4]  #
+            # Color map for the points
+            colors = colors[inrange_left[0]]
+            cmap = matplotlib.cm.get_cmap('hsv')
+            colors = cmap(colors / np.max(colors))
+            print('colors -> {},  min:{}, max:{}'.format(np.shape(colors), np.min(colors), np.max(colors)))
+
+            colorImageLeft = img.copy()
+            points_left = objPoints_left[inrange_left[0]]
+
+            print('points_left -> {},  colorImageLeft->{}'.format(np.shape(points_left), np.shape(colorImageLeft)))
+            colors_left = colorImageLeft[points2D_left[:, 1], points2D_left[:, 0], :]
+
+            print('colors_left -> {}'.format(np.shape(colors_left)))
+
+            Z = np.linalg.norm(points_left, axis=1)[:, np.newaxis]
+            data = np.hstack((points2D_left, Z))  # N x 3 (x,y,distance)
+            data = np.hstack((data, points_left))  # N x 6
+            data = np.hstack((data, colors_left))  # N x 9 (x,y,distance, X,Y,Z,R,G,B)
+
+            good_points, cols, _3Dpoint, _3Dcolor = filterOcclusion(data=data)
+            print('good_points->{}, cols->{}, _3Dpoint->{}, _3Dcolor->{}'.format(
+                np.shape(good_points), np.shape(cols), np.shape(_3Dpoint), np.shape(_3Dcolor)))
+            for i in range(len(good_points)):
+                cv2.circle(img, tuple(good_points[i]), 2, cols[i], -1)
+
+            cv2.imshow('img ',cv2.resize(img,None, fx=.5,fy=.5))
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+            break
+
+    def stackVideos(self):
+        v1 = '/home/eugeniu/Videos/original.mkv'
+        v2 = '/home/eugeniu/Videos/fused.mkv'
+        v3 = '/home/eugeniu/Videos/filtered.mkv'
+
+        text = [' Sensors  synchronized',' Sensors  fused','Occlusion removed']
+        names = [v1, v2, v3]
+        cap = [cv2.VideoCapture(i) for i in names]
+        img_array = []
+
+        frames = [None] * len(names)
+        ret = [None] * len(names)
+        import time
+
+        # font
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        # org
+        org = (int(1720/2-310), 470)
+        # fontScale
+        fontScale = 2
+        # Line thickness of 2 px
+        thickness = 3
+        #(578, 1812, 3)
+        #(470, 1720, 3)
+        size = 0
+        white = [255, 255, 255]
+        while True:
+            for i, c in enumerate(cap):
+                if c is not None:
+                    ret[i], frames[i] = c.read()
+                    if ret[i]:
+                        constant = cv2.copyMakeBorder(frames[i].copy(), 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=white)
+                        constant = cv2.putText(constant, text[i], org, font,
+                                            fontScale, white, thickness, cv2.LINE_AA)
+                        frames[i] = constant
+
+            time.sleep(.01)
+            if np.all(ret):
+                ver = np.vstack((frames[0],frames[1]))
+                all = np.vstack((ver,frames[2]))
+                #all = cv2.resize(all,None,fx=.65,fy=.55)
+
+                height, width, layers = all.shape
+                size = (width, height)
+                img_array.append(all)
+                cv2.imshow('all', all)
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+
+
+        for c in cap:
+            if c is not None:
+                c.release()
+        cv2.destroyAllWindows()
+
+        out = cv2.VideoWriter('project.avi', cv2.VideoWriter_fourcc(*'DIVX'), 15, size)
+
+        for i in range(len(img_array)):
+            out.write(img_array[i])
+        out.release()
+
+    def do_holy_Final_calibration_Jury(self):
+
+        with open('calib_data.pkl', 'rb') as f:
+            calib_data = pickle.load(f)
+        self.K = calib_data['K_rgb']
+        self.D = calib_data['D_rgb']
+        print('K')
+        print(self.K)
+        print('D')
+        print(self.D)
+
+        points3D_Lidar = np.array(self.Lidar_3D, dtype=np.float32).reshape(-1, 3)
+        points2DLeft = np.array(self.Image_2D, dtype=np.float32).reshape(-1, 2)
+        print('points3D_Lidar->{}, points2DLeft->{}'.format(np.shape(points3D_Lidar), np.shape(points2DLeft)))
+
+
+        #calibrate Lidar-> left camera
+        print('Calibrate LiDAR->Left camera===============================================================')
+        imgp = np.array([points2DLeft], dtype=np.float32).squeeze()
+        objp = np.array([points3D_Lidar], dtype=np.float32).squeeze()
+        print('imgp->{},objp->{}'.format(np.shape(imgp), np.shape(objp)))
+        #retval, rvec, tvec = cv2.solvePnP(objp, imgp, self.K, self.D, flags=cv2.SOLVEPNP_ITERATIVE)
+        retval, rvec, tvec, inliers = cv2.solvePnPRansac(objp,imgp, self.K, self.D,flags=cv2.SOLVEPNP_ITERATIVE)
+        #rvec, tvec = cv2.solvePnPRefineLM(objp, imgp, self.K, self.D, rvec, tvec)
+        print('rvec is {}=============='.format(rvec))
+        print("T = ")
+        print(tvec)
+        rvec, jac = cv2.Rodrigues(rvec)
+        q = Quaternion(matrix=rvec)
+        result_file = 'Jury_PnP.npz'
+        with open(result_file, 'w') as f:
+            f.write("%f %f %f %f %f %f %f" % (q.x, q.y, q.z, q.w, tvec[0], tvec[1], tvec[2]))
+
+        q = Quaternion(matrix=rvec).transformation_matrix
+        for i in range(0,32):
+            objPoints_left = np.array(np.load('/home/eugeniu/cool/cloud_{}.npy'.format(i), mmap_mode='r'))[:,:3]
+            imgLeft = cv2.imread('/home/eugeniu/cool/left_{}.png'.format(i))
+
+            print('objPoints_left -> {}'.format(np.shape(objPoints_left)))
+
+            Z = self.get_z(q, objPoints_left, self.K)
+            objPoints_left = objPoints_left[Z > 0]
+            points2D_left, _ = cv2.projectPoints(objPoints_left, rvec, tvec, self.K, self.D)
+            points2D_left = np.squeeze(points2D_left)
+
+            inrange_left = np.where((points2D_left[:, 0] > 0) & (points2D_left[:, 1] > 0) &
+                                    (points2D_left[:, 0] < imgLeft.shape[1] - 1) & (
+                                                points2D_left[:, 1] < imgLeft.shape[0] - 1))
+            points2D_left = points2D_left[inrange_left[0]].round().astype('int')
+            for j in range(len(points2D_left)):
+                cv2.circle(imgLeft, tuple(points2D_left[j]), 3, (0, 255, 0), -1)
+
+            cv2.imshow('image', cv2.resize(imgLeft, None, fx=.4, fy=.4))
+            cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+
+def getData2(chess=True):
+    pcl_files = glob.glob('/home/eugeniu/cool/*.npy')
+    imgleft_files = glob.glob('/home/eugeniu/cool/left*.png')
+    imgright_files = imgleft_files
+    pcl_files.sort()
+    imgleft_files.sort()
+    imgright_files.sort()
+
+    GoodPoints,_3DErros, IMageNames = [],[],[]
+    for i, file in enumerate(pcl_files):
+        if globalTrigger:
+            print('work with {}'.format(file))
+            image_left = imgleft_files[i]
+            image_right = imgright_files[i]
+            filt = PointCloud_filter(file=file, img_file=image_left, img_file2=image_right, debug=False)
+            filt.setUp()
+
+            plt.show()
+            plt.close()
+            print('\n OK:{},  Save points_correspondences : {}'.format(filt.OK, np.shape(filt.points_correspondences)))
+            if filt.OK:
+                GoodPoints.append(filt.points_correspondences)
+                print('save data {} '.format(np.shape(GoodPoints)))
+                _3DErros.append(filt._3DErros)
+                IMageNames.append(os.path.basename(image_left))
+        else:
+            print('Close')
+            break
+
+    save_obj(GoodPoints, 'Jury_GoodPoints')
+    print('Data saved in GoodPoints')
 
 if __name__ == '__main__':
     collect_Data = True
     collect_Data = False
 
     if collect_Data:
-        getData(chess=False)
+        #getData(chess=True)
+        getData2(chess=True)
     else:
         name = 'chess' #works for both
         name = 'charuco' #works for both
         file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/GoodPoints_{}.pkl'.format(name)
         file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/GoodPoints2_{}.pkl'.format(name)
-
+        #file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/GoodPointsInitLidar.pkl'
+        #file = '/home/eugeniu/catkin_ws/src/testNode/CAMERA_CALIBRATION/data/Jury_GoodPoints.pkl'
         chess = True if name == 'chess' else False
         calibrator = LiDAR_Camera_Calibration(file=file, chess = chess)
         calibrator.load_points()
@@ -3955,4 +5268,8 @@ if __name__ == '__main__':
         #calibrator.DLT()
 
         #Calibreate Lidar->left camera,  Lidar->right camera, Lidar->3D points
-        calibrator.do_holy_Final_calibration(False)
+        #calibrator.do_holy_Final_calibration2()
+        calibrator.filter_for_video()
+        #calibrator.stackVideos()
+
+        #calibrator.do_holy_Final_calibration_Jury()
